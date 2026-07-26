@@ -13,6 +13,18 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+html, body, #root {
+  min-height: 100vh;
+}
+
+html, body {
+  background: #09090b;
+}
+
+[data-theme='light'] {
+  background: #f5f5f4;
+}
+
 /* ===== Titlebar Drag ===== */
 .titlebar-drag {
   -webkit-app-region: drag;
@@ -28,8 +40,8 @@ body {
 
 /* ===== Scrollbar ===== */
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -37,12 +49,16 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(128, 128, 128, 0.2);
-  border-radius: 3px;
+  background: rgba(128, 128, 128, 0.12);
+  border-radius: 6px;
+  border: 1.5px solid transparent;
+  background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(128, 128, 128, 0.35);
+  background: rgba(128, 128, 128, 0.25);
+  border: 1.5px solid transparent;
+  background-clip: padding-box;
 }
 
 /* ===== Page Header ===== */
@@ -173,7 +189,7 @@ body {
 
 /* ===== Cards ===== */
 .content-card {
-  border-radius: 10px;
+  border-radius: 6px;
 }
 
 .content-card .ant-card-head {
@@ -186,6 +202,123 @@ body {
   font-weight: 500;
   padding: 13px 0;
   letter-spacing: -0.01em;
+}
+
+/* ===== 簿记表单：统一所有控件宽度（保持三列布局下各输入框等宽） ===== */
+.bookkeeping-form .ant-input,
+.bookkeeping-form .ant-select,
+.bookkeeping-form .ant-input-number,
+.bookkeeping-form .ant-picker,
+.bookkeeping-form .ant-input-affix-wrapper {
+  width: 100%;
+}
+
+/* 簿记卡片：收窄整体宽度（左对齐，与导航栏间距不变），避免输入框被拉得过宽 */
+.bookkeeping-card {
+  max-width: 720px;
+}
+
+/* 信息组标题靠左（无线）：卡片左右内边距移到表单上，标题用负边距贴卡片左边缘 */
+.bookkeeping-card .ant-card-body {
+  padding: 24px 0;
+}
+.bookkeeping-card .bookkeeping-form {
+  padding: 0 24px;
+}
+/* 信息组标题：横线在文字垂直中部、仅右侧贯穿卡片整行，无左侧线条 */
+.bookkeeping-card .bookkeeping-section-divider {
+  display: flex;
+  align-items: center;
+  margin: 28px -24px 18px;
+  padding: 0 24px;
+}
+.bookkeeping-card .bookkeeping-section-divider:first-child {
+  margin-top: 0;
+}
+.bookkeeping-section-line {
+  flex: 1;
+  height: 1px;
+  margin-left: 14px;
+  background: linear-gradient(90deg, #e5e7eb 0%, rgba(229, 231, 235, 0) 100%);
+}
+/* 暗色模式：分割线过亮，调暗为低透明度白，避免抢眼 */
+[data-theme='dark'] .bookkeeping-section-line {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0) 100%);
+}
+.bookkeeping-section-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1f2937;
+  letter-spacing: 0.04em;
+}
+[data-theme='dark'] .bookkeeping-section-title {
+  color: rgba(255, 255, 255, 0.88);
+}
+.bookkeeping-section-title .nav-icon-circle {
+  background: rgba(91, 106, 191, 0.1);
+  border-color: rgba(91, 106, 191, 0.16);
+  color: #5b6abf;
+}
+
+/* ===== 簿记表单：字段标签（合约结构标签）质感优化 ===== */
+.bookkeeping-form .ant-form-item-label {
+  padding-bottom: 7px;
+  line-height: 1.25;
+}
+.bookkeeping-form .ant-form-item-label > label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #4b5563;
+  letter-spacing: 0.01em;
+}
+[data-theme='dark'] .bookkeeping-form .ant-form-item-label > label {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+/* ===== 结构标签（雪球 / 凤凰）：磨砂玻璃质感 ===== */
+.structure-tag.ant-tag {
+  margin: 0;
+  padding: 2px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  line-height: 16px;
+  border-radius: 999px;
+  backdrop-filter: blur(12px) saturate(160%);
+  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow:
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.75),
+    0 1px 5px rgba(15, 23, 42, 0.1);
+}
+.structure-tag.ant-tag.structure-tag--snowball {
+  background: rgba(59, 130, 246, 0.16);
+  color: #1d4ed8;
+  border-color: rgba(59, 130, 246, 0.32);
+}
+.structure-tag.ant-tag.structure-tag--phoenix {
+  background: rgba(244, 63, 94, 0.16);
+  color: #be123c;
+  border-color: rgba(244, 63, 94, 0.32);
+}
+[data-theme='dark'] .structure-tag.ant-tag {
+  border-color: rgba(255, 255, 255, 0.18);
+  box-shadow:
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.2),
+    0 1px 6px rgba(0, 0, 0, 0.35);
+}
+[data-theme='dark'] .structure-tag.ant-tag.structure-tag--snowball {
+  background: rgba(96, 165, 250, 0.18);
+  color: #93c5fd;
+  border-color: rgba(96, 165, 250, 0.4);
+}
+[data-theme='dark'] .structure-tag.ant-tag.structure-tag--phoenix {
+  background: rgba(251, 113, 133, 0.18);
+  color: #fda4af;
+  border-color: rgba(251, 113, 133, 0.4);
 }
 
 /* ===== Table ===== */
@@ -225,6 +358,29 @@ body {
   box-shadow: none !important;
 }
 
+/* 簿记表单：聚焦时彻底不显示任何框线/高亮（覆盖包裹层与内部原生 input），
+   去除 outline、border 变色、box-shadow、过渡与动画 */
+.bookkeeping-form :focus,
+.bookkeeping-form :focus-visible,
+.bookkeeping-form :focus-within,
+.bookkeeping-form input:focus,
+.bookkeeping-form textarea:focus,
+.bookkeeping-form input:focus-visible,
+.bookkeeping-form textarea:focus-visible {
+  outline: none !important;
+  border-color: #d9d9d9 !important;
+  box-shadow: none !important;
+  transition: none !important;
+  animation: none !important;
+}
+
+.ant-segmented:focus,
+.ant-segmented:focus-visible,
+.ant-segmented-item:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
 .ant-btn-primary:hover {
   opacity: 0.9;
   transform: translateY(-0.3px);
@@ -239,10 +395,11 @@ body {
 .sidebar-menu .ant-menu-item {
   height: 36px;
   line-height: 36px;
-  margin: 1px 6px;
-  border-radius: 8px;
+  margin: 1px 16px 1px 6px;
+  border-radius: 6px;
   font-size: 13px;
   border: 1px solid transparent;
+  outline: none !important;
   box-shadow: 0 0 0 rgba(0, 0, 0, 0), inset 0 0 0 rgba(255, 255, 255, 0);
   transition: background 0.3s cubic-bezier(0.4, 0, 0.2, 1),
               border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
@@ -252,6 +409,12 @@ body {
 
 .sidebar-menu .ant-menu-item:hover {
   background: rgba(255, 255, 255, 0.05) !important;
+}
+
+.sidebar-menu .ant-menu-item:focus,
+.sidebar-menu .ant-menu-item:focus-visible {
+  outline: none !important;
+  border-color: transparent;
 }
 
 .sidebar-menu .ant-menu-item-selected {
@@ -302,6 +465,27 @@ body {
 [data-theme='light'] .nav-icon-circle--active {
   background: rgba(0, 0, 0, 0.06);
   border-color: rgba(0, 0, 0, 0.1);
+}
+
+/* ===== 操作列图标按钮：去掉 antd text 按钮的方形背景/边框，仅保留圆形图标 ===== */
+.icon-btn.ant-btn {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  padding: 2px !important;
+}
+
+.icon-btn.ant-btn:hover,
+.icon-btn.ant-btn:focus,
+.icon-btn.ant-btn:focus-visible,
+.icon-btn.ant-btn:active {
+  background: transparent !important;
+  border-color: transparent !important;
+}
+
+.icon-btn.ant-btn .nav-icon-circle:hover {
+  background: rgba(128, 128, 128, 0.18);
+  transform: scale(1.06);
 }
 
 /* ===== Descriptions ===== */
@@ -371,4 +555,13 @@ body {
 
 .index-card .ant-card-body {
   padding: 14px 16px;
+}
+
+/* ===== 新增标的提示文字 ===== */
+.instrument-hint {
+  color: rgba(0, 0, 0, 0.45);
+}
+
+[data-theme='dark'] .instrument-hint {
+  color: rgba(255, 255, 255, 0.65);
 }

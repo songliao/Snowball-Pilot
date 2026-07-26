@@ -1,19 +1,24 @@
-appId: com.snowball.manager
-productName: 雪球持仓管理
+appId: com.snowball.pilot
+productName: Snowball Pilot
 directories:
   buildResources: resources
   output: dist
+extraResources:
+  - from: resources/icon.png
+    to: icon.png
 files:
   - out/**/*
   - "!node_modules/**/*"
 asar: true
 mac:
   category: public.app-category.finance
+  icon: resources/icon.icns
   target:
     - dmg
     - zip
   artifactName: ${productName}-${version}-${arch}.${ext}
 win:
+  icon: resources/icon.ico
   target:
     - nsis
     - portable
@@ -22,6 +27,7 @@ nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
 linux:
+  icon: resources/icon.png
   target:
     - AppImage
     - deb

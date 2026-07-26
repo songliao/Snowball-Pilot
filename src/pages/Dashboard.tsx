@@ -1,18 +1,12 @@
 import { useEffect, useState, useCallback } from 'react'
-import { Card, Row, Col, Button, Space, message, Popover, InputNumber, Select, List, Tag } from 'antd'
-import { useNavigate } from 'react-router-dom'
+import { Card, Row, Col, Button } from 'antd'
 import {
   DollarOutlined,
   SafetyCertificateOutlined,
   SnippetsOutlined,
-  ReloadOutlined,
-  PlusOutlined,
-  BellOutlined,
-  DeleteOutlined
+  ReloadOutlined
 } from '@ant-design/icons'
 import { usePositionStore } from '../stores/positionStore'
-import { useMarketStore } from '../stores/marketStore'
-import { useAlertStore } from '../stores/alertStore'
 import { formatMoney } from '../utils/format'
 
 interface IndexQuoteData {
@@ -30,27 +24,25 @@ interface IndexQuoteData {
   updateTime: string
 }
 
-const INDEX_LIST = [
-  { code: '000852.SH', label: '中证1000' },
-  { code: '000905.SH', label: '中证500' },
-  { code: '000300.SH', label: '沪深300' },
-  { code: '000016.SH', label: '上证50' }
-]
-
 export default function Dashboard() {
-  const navigate = useNavigate()
   const { positions, fetchAll } = usePositionStore()
-  const { fetchRemotePrice } = useMarketStore()
-  const { alerts, addAlert, removeAlert, checkAlerts } = useAlertStore()
-  const [refreshing, setRefreshing] = useState(false)
   const [quotes, setQuotes] = useState<Record<string, IndexQuoteData>>({})
   const [quoteLoading, setQuoteLoading] = useState(false)
-  const [alertPrice, setAlertPrice] = useState<number | null>(null)
-  const [alertDirection, setAlertDirection] = useState<'above' | 'below'>('above')
-  const [popoverCode, setPopoverCode] = useState<string | null>(null)
+  // 总览卡片显示的标的（来自标的管理页的置顶选择）
+  const [watchCodes, setWatchCodes] = useState<string[]>([])
 
   useEffect(() => {
     fetchAll()
+    loadWatchlist()
+  }, [])
+
+  const loadWatchlist = useCallback(async () => {
+    try {
+      const codes = await window.api.prices.getWatchlist()
+      setWatchCodes(codes)
+    } catch {
+      setWatchCodes([])
+    }
   }, [])
 
   const activePositions = positions.filter((p) => p.status === 'active')
@@ -61,70 +53,29 @@ export default function Dashboard() {
   const activeContracts = activePositions.length
   const totalContracts = positions.length
 
-  // 获取所有指数行情
+  // 手动获取所有指数行情（不做自动刷新，避免行情 API 被封）
   const fetchQuotes = useCallback(async () => {
+    if (watchCodes.length === 0) {
+      setQuotes({})
+      return
+    }
     setQuoteLoading(true)
     try {
       const results: Record<string, IndexQuoteData> = {}
-      for (const idx of INDEX_LIST) {
-        const data = await window.api.market.fetchIndexQuote(idx.code)
-        if (data) results[idx.code] = data
+      for (const code of watchCodes) {
+        const data = await window.api.market.fetchIndexQuote(code)
+        if (data) results[code] = data
       }
       setQuotes(results)
-
-      // 检查到价提醒
-      const prices: Record<string, number> = {}
-      for (const [code, q] of Object.entries(results)) {
-        prices[code] = q.price
-      }
-      const triggered = checkAlerts(prices)
-      if (triggered.length > 0) {
-        for (const a of triggered) {
-          const dir = a.direction === 'above' ? '已达到' : '已跌破'
-          message.warning(`【到价提醒】${a.label} ${dir} ${a.targetPrice}，当前 ${prices[a.code]?.toFixed(2)}`)
-        }
-        // 系统通知
-        window.api.notification.check()
-      }
     } finally {
       setQuoteLoading(false)
     }
-  }, [checkAlerts])
+  }, [watchCodes])
 
-  // 判断是否在A股交易时段（周一至周五 9:30-11:30, 13:00-15:00）
-  const isTradingTime = useCallback(() => {
-    const now = new Date()
-    const day = now.getDay()
-    if (day === 0 || day === 6) return false
-    const h = now.getHours()
-    const m = now.getMinutes()
-    const t = h * 60 + m
-    return (t >= 570 && t <= 690) || (t >= 780 && t <= 900)
-  }, [])
-
+  // 读取自选列表后拉取行情；手动刷新也基于当前自选列表
   useEffect(() => {
     fetchQuotes()
-    if (isTradingTime()) {
-      const timer = setInterval(fetchQuotes, 30000)
-      return () => clearInterval(timer)
-    }
-  }, [fetchQuotes, isTradingTime])
-
-  const handleRefreshPrices = async () => {
-    setRefreshing(true)
-    try {
-      const codes = [...new Set(positions.map((p) => p.underlying_code).filter(Boolean))]
-      for (const code of codes) {
-        await fetchRemotePrice(code)
-      }
-      await fetchQuotes()
-      message.success('行情已更新')
-    } catch {
-      message.error('行情更新失败')
-    } finally {
-      setRefreshing(false)
-    }
-  }
+  }, [fetchQuotes])
 
   return (
     <div>
@@ -134,7 +85,7 @@ export default function Dashboard() {
       </div>
       <Row gutter={[12, 12]} style={{ marginBottom: 20 }} align="middle">
         <Col span={6}>
-          <Card className="stat-card glass-card" bordered={false}>
+          <Card className="stat-card glass-card" variant="borderless">
             <div className="stat-card-inner">
               <div>
                 <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 4 }}>名义本金</div>
@@ -148,7 +99,7 @@ export default function Dashboard() {
           </Card>
         </Col>
         <Col span={6}>
-          <Card className="stat-card glass-card" bordered={false}>
+          <Card className="stat-card glass-card" variant="borderless">
             <div className="stat-card-inner">
               <div>
                 <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 4 }}>保证金</div>
@@ -162,7 +113,7 @@ export default function Dashboard() {
           </Card>
         </Col>
         <Col span={6}>
-          <Card className="stat-card glass-card" bordered={false}>
+          <Card className="stat-card glass-card" variant="borderless">
             <div className="stat-card-inner">
               <div>
                 <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 4 }}>合约数</div>
@@ -174,16 +125,6 @@ export default function Dashboard() {
               <div className="stat-icon"><SnippetsOutlined /></div>
             </div>
           </Card>
-        </Col>
-        <Col span={6} style={{ textAlign: 'right' }}>
-          <Space direction="vertical" size={8}>
-            <Button className="glass-btn" icon={<ReloadOutlined spin={refreshing} />} onClick={handleRefreshPrices} block>
-              刷新行情
-            </Button>
-            <Button className="glass-btn" icon={<PlusOutlined />} onClick={() => navigate('/positions/new')} block>
-              新增持仓
-            </Button>
-          </Space>
         </Col>
       </Row>
 
@@ -199,93 +140,24 @@ export default function Dashboard() {
         />
       </div>
       <Row gutter={[12, 12]}>
-        {INDEX_LIST.map((idx) => {
-          const q = quotes[idx.code]
-          const up = q ? q.change >= 0 : true
-          const color = q ? (up ? '#ef4444' : '#22c55e') : undefined
-          const codeAlerts = alerts.filter((a) => a.code === idx.code && a.enabled && !a.triggered)
-
-          const alertContent = (
-            <div style={{ width: 220 }}>
-              <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-                <Select
-                  size="small"
-                  value={alertDirection}
-                  onChange={setAlertDirection}
-                  style={{ width: 90 }}
-                  options={[
-                    { value: 'above', label: '涨到' },
-                    { value: 'below', label: '跌到' }
-                  ]}
-                />
-                <InputNumber
-                  size="small"
-                  value={alertPrice}
-                  onChange={(v) => setAlertPrice(v)}
-                  placeholder="目标价"
-                  style={{ flex: 1 }}
-                  step={10}
-                />
-              </div>
-              <Button
-                size="small"
-                type="primary"
-                block
-                disabled={!alertPrice}
-                onClick={() => {
-                  if (!alertPrice) return
-                  addAlert({ code: idx.code, label: idx.label, targetPrice: alertPrice, direction: alertDirection, enabled: true })
-                  setAlertPrice(null)
-                  setPopoverCode(null)
-                  message.success(`已设置${idx.label}到价提醒`)
-                }}
-              >
-                添加提醒
-              </Button>
-              {codeAlerts.length > 0 && (
-                <List
-                  size="small"
-                  dataSource={codeAlerts}
-                  style={{ marginTop: 8 }}
-                  renderItem={(a) => (
-                    <List.Item
-                      style={{ padding: '4px 0', border: 'none' }}
-                      actions={[
-                        <Button key="del" type="text" size="small" danger icon={<DeleteOutlined />} onClick={() => removeAlert(a.id)} />
-                      ]}
-                    >
-                      <span style={{ fontSize: 12 }}>
-                        {a.direction === 'above' ? '涨到' : '跌到'} {a.targetPrice}
-                      </span>
-                    </List.Item>
-                  )}
-                />
-              )}
+        {watchCodes.length === 0 ? (
+          <Col span={24}>
+            <div style={{ fontSize: 12, opacity: 0.4, padding: '12px 0' }}>
+              暂未在「标的管理」中收藏任何标的。前往标的管理页，点击标的操作列的「收藏」即可将其添加到此处。
             </div>
-          )
+          </Col>
+        ) : (
+          watchCodes.map((code) => {
+            const q = quotes[code]
+            const up = q ? q.change >= 0 : true
+            const color = q ? (up ? '#ef4444' : '#22c55e') : undefined
 
-          return (
-            <Col span={6} key={idx.code}>
-              <Card className="glass-card index-card" bordered={false}>
-                <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: 12, fontWeight: 600 }}>{idx.label}</span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    {codeAlerts.length > 0 && (
-                      <Tag color="orange" style={{ fontSize: 10, lineHeight: '16px', padding: '0 4px', margin: 0 }}>
-                        {codeAlerts[0].direction === 'above' ? '↑' : '↓'}{codeAlerts[0].targetPrice}
-                      </Tag>
-                    )}
-                    <Popover
-                      content={alertContent}
-                      title="到价提醒"
-                      trigger="click"
-                      open={popoverCode === idx.code}
-                      onOpenChange={(open) => { setPopoverCode(open ? idx.code : null); if (!open) setAlertPrice(null) }}
-                    >
-                      <BellOutlined style={{ fontSize: 12, opacity: codeAlerts.length > 0 ? 0.8 : 0.35, cursor: 'pointer' }} />
-                    </Popover>
+            return (
+              <Col span={6} key={code}>
+                <Card className="glass-card index-card" variant="borderless">
+                  <div style={{ marginBottom: 8 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600 }}>{q?.name || code}</span>
                   </div>
-                </div>
                 {q ? (
                   <>
                     <div style={{ fontSize: 20, fontWeight: 700, color, letterSpacing: '-0.02em', marginBottom: 4 }}>
@@ -318,8 +190,9 @@ export default function Dashboard() {
                 )}
               </Card>
             </Col>
-          )
-        })}
+            )
+          })
+        )}
       </Row>
     </div>
   )

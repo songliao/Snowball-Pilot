@@ -12,11 +12,19 @@ import dayjs from 'dayjs'
 import { usePositionStore } from '../stores/positionStore'
 import { useMarketStore } from '../stores/marketStore'
 import {
-  calcPnL, calcHoldingDays, calcDaysToMaturity,
+  calcPnL,
   calcKnockInPrice, calcKnockOutPrice, calcSafetyMargin
 } from '../utils/calc'
 import { formatMoney, formatPercent, formatDate, STATUS_MAP, EVENT_TYPE_MAP, FREQ_MAP } from '../utils/format'
 import PriceChart from '../components/PriceChart'
+
+const parseJsonArray = <T,>(s?: string): T[] => {
+  try {
+    return s ? (JSON.parse(s) as T[]) : []
+  } catch {
+    return []
+  }
+}
 
 export default function PositionDetail() {
   const { id } = useParams()
@@ -49,8 +57,6 @@ export default function PositionDetail() {
   const knockOutPrice = calcKnockOutPrice(pos.initial_price, pos.knock_out_pct)
   const safetyMargin = currentPrice ? calcSafetyMargin(currentPrice, knockInPrice) : null
   const { pnl, pnlRate, type } = calcPnL(pos, currentPrice)
-  const holdingDays = calcHoldingDays(pos.effective_date)
-  const daysToMaturity = calcDaysToMaturity(pos.maturity_date)
   const statusInfo = STATUS_MAP[pos.status] || { label: pos.status, color: 'default' }
 
   const handleStatusChange = async (status: string) => {
@@ -102,7 +108,8 @@ export default function PositionDetail() {
               <Tag color={statusInfo.color}>{statusInfo.label}</Tag>
             </div>
             <div style={{ fontSize: 13, opacity: 0.45, marginTop: 2 }}>
-              {pos.underlying} · {pos.broker || '未知券商'}
+              {pos.underlying_code || pos.underlying} · {pos.broker || '未知交易对手'}
+              {pos.contract_no ? ` · ${pos.contract_no}` : ''}
             </div>
           </div>
         </Space>
@@ -133,7 +140,7 @@ export default function PositionDetail() {
       {/* Metrics */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col span={6}>
-          <Card className="stat-card content-card" bordered={false}>
+          <Card className="stat-card content-card" variant="borderless">
             <Statistic
               title={`浮动盈亏（${type}）`}
               value={pnl}
@@ -144,7 +151,7 @@ export default function PositionDetail() {
           </Card>
         </Col>
         <Col span={6}>
-          <Card className="stat-card content-card" bordered={false}>
+          <Card className="stat-card content-card" variant="borderless">
             <Statistic
               title="收益率"
               value={pnlRate}
@@ -154,34 +161,18 @@ export default function PositionDetail() {
             />
           </Card>
         </Col>
-        <Col span={6}>
-          <Card className="stat-card content-card" bordered={false}>
-            <Statistic title="持有天数" value={holdingDays} suffix="天" />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card className="stat-card content-card" bordered={false}>
-            <Statistic
-              title="剩余天数"
-              value={Math.max(0, daysToMaturity)}
-              suffix="天"
-              valueStyle={{ color: daysToMaturity <= 7 ? '#ff4d4f' : daysToMaturity <= 30 ? '#faad14' : undefined }}
-            />
-          </Card>
-        </Col>
       </Row>
 
       {/* Contract Details */}
       <Card
         title="合约要素"
-        bordered={false}
+        variant="borderless"
         className="content-card"
         style={{ marginBottom: 24 }}
       >
         <Descriptions bordered column={3} size="small">
           <Descriptions.Item label="券商">{pos.broker || '—'}</Descriptions.Item>
-          <Descriptions.Item label="标的资产">{pos.underlying}</Descriptions.Item>
-          <Descriptions.Item label="标的代码">{pos.underlying_code || '—'}</Descriptions.Item>
+          <Descriptions.Item label="标的">{pos.underlying_code || pos.underlying || '—'}</Descriptions.Item>
           <Descriptions.Item label="名义本金">
             <span style={{ fontWeight: 500 }}>{formatMoney(pos.notional)}</span>
           </Descriptions.Item>
@@ -189,9 +180,6 @@ export default function PositionDetail() {
             <span style={{ fontWeight: 500 }}>{formatPercent(pos.coupon_rate)}</span>
           </Descriptions.Item>
           <Descriptions.Item label="观察频率">{FREQ_MAP[pos.observation_freq] || pos.observation_freq}</Descriptions.Item>
-          <Descriptions.Item label="交易日期">{formatDate(pos.trade_date)}</Descriptions.Item>
-          <Descriptions.Item label="生效日期">{formatDate(pos.effective_date)}</Descriptions.Item>
-          <Descriptions.Item label="到期日">{formatDate(pos.maturity_date)}</Descriptions.Item>
           <Descriptions.Item label="期初价格">
             <span style={{ fontWeight: 500 }}>{pos.initial_price.toFixed(2)}</span>
           </Descriptions.Item>
@@ -226,10 +214,54 @@ export default function PositionDetail() {
         </Descriptions>
       </Card>
 
+      {/* 雪球簿记信息 */}
+      {pos.structure_type !== 'phoenix' && (
+        <Card
+          title="雪球簿记"
+          variant="borderless"
+          className="content-card"
+          style={{ marginBottom: 24 }}
+        >
+          {(() => {
+    const koBarriers = parseJsonArray<number>(pos.knock_out_barriers)
+    const koCoupons = parseJsonArray<number>(pos.knock_out_coupons)
+            const joinPct = (arr: number[]) => (arr.length ? arr.map((v) => `${v}%`).join('、') : '—')
+            const joinDates = (arr: string[]) => (arr.length ? arr.map((d) => formatDate(d)).join('、') : '—')
+            return (
+              <Descriptions bordered column={3} size="small">
+                <Descriptions.Item label="合约编号">{pos.contract_no || '—'}</Descriptions.Item>
+                <Descriptions.Item label="敲入观察方式">
+                  {pos.knock_in_observation === 'maturity' ? '到期观察' : '每日观察'}
+                </Descriptions.Item>
+                <Descriptions.Item label="敲出障碍价格" span={2}>{joinPct(koBarriers)}</Descriptions.Item>
+                <Descriptions.Item label="敲出票息" span={2}>{joinPct(koCoupons)}</Descriptions.Item>
+                <Descriptions.Item label="敲出增强参与率">
+                  {formatPercent(pos.knock_out_enhance_participation ?? 0)}
+                </Descriptions.Item>
+                <Descriptions.Item label="红利票息">
+                  {formatPercent(pos.dividend_coupon ?? 0)}
+                </Descriptions.Item>
+                <Descriptions.Item label="敲入执行价格">{formatPercent(pos.knock_in_strike_pct ?? 0)}</Descriptions.Item>
+                <Descriptions.Item label="敲入参与率">{formatPercent(pos.knock_in_participation ?? 0)}</Descriptions.Item>
+                <Descriptions.Item label="保证金比例">{formatPercent(pos.margin_rate)}</Descriptions.Item>
+                <Descriptions.Item label="最大亏损">
+                  {formatPercent(pos.max_loss_pct ?? pos.margin_rate)}
+                </Descriptions.Item>
+                <Descriptions.Item label="计息规则">{pos.accrual_basis === 'one' ? '单含' : '双含'}</Descriptions.Item>
+                <Descriptions.Item label="计息结算 T+">{pos.accrual_settle_tplus ?? 0}</Descriptions.Item>
+                <Descriptions.Item label="年化后端返息">{formatPercent(pos.rebate_annual_pct ?? 0)}</Descriptions.Item>
+                <Descriptions.Item label="绝对后端返息">{formatPercent(pos.rebate_absolute_back_pct ?? 0)}</Descriptions.Item>
+                <Descriptions.Item label="绝对前端返息">{formatPercent(pos.rebate_absolute_front_pct ?? 0)}</Descriptions.Item>
+              </Descriptions>
+            )
+          })()}
+        </Card>
+      )}
+
       {/* Chart + Events */}
       <Row gutter={[16, 16]}>
         <Col span={16}>
-          <Card title="价格走势" bordered={false} className="content-card">
+          <Card title="价格走势" variant="borderless" className="content-card">
             <PriceChart
               code={pos.underlying_code}
               knockInPrice={knockInPrice}
@@ -239,7 +271,7 @@ export default function PositionDetail() {
           </Card>
         </Col>
         <Col span={8}>
-          <Card title="事件记录" bordered={false} className="content-card">
+          <Card title="事件记录" variant="borderless" className="content-card">
             {events.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '40px 0', opacity: 0.35 }}>
                 暂无事件记录

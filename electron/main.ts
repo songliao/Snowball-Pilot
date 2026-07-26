@@ -1,15 +1,179 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, shell, net, Menu, nativeTheme } from 'electron'
 import { join } from 'path'
+import { readFileSync } from 'fs'
 import { is } from '@electron-toolkit/utils'
 import { initDatabase } from './database'
 import { registerPositionHandlers } from './database/positions'
 import { registerPriceHandlers } from './database/prices'
 import { registerEventHandlers } from './database/events'
-import { fetchMarketPrice, fetchIndexQuote } from './services/market-data'
-import { saveDailyClose, backfillHistory, getIndexHistory } from './services/index-history'
+import { fetchMarketPrice, fetchIndexQuote, fetchKline } from './services/market-data'
+import { saveDailyClose, backfillHistory, backfillSingleCode, ensureHistoryBackfilled, getIndexHistory, refreshToToday } from './services/index-history'
 import { checkAndNotify } from './services/notification'
 
 let mainWindow: BrowserWindow | null = null
+
+// 构建应用菜单：自定义「关于」弹窗以展示应用自有 logo（避免 macOS 原生关于面板回退到 Electron 默认图标）
+function buildAppMenu(): void {
+  const isMac = process.platform === 'darwin'
+
+  const template: Electron.MenuItemConstructorOptions[] = [
+    ...(isMac
+      ? [
+          {
+            label: app.getName(),
+            submenu: [
+              {
+                label: '关于 Snowball Pilot',
+                click: () => showAboutWindow()
+              },
+              { type: 'separator' },
+              { role: 'services' as const },
+              { type: 'separator' },
+              { role: 'hide' as const },
+              { role: 'hideOthers' as const },
+              { role: 'unhide' as const },
+              { type: 'separator' },
+              { role: 'quit' as const }
+            ]
+          }
+        ]
+      : []),
+    {
+      label: '编辑',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'selectAll' }
+      ]
+    },
+    {
+      label: '视图',
+      submenu: [
+        { role: 'reload' },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' }
+      ]
+    },
+    {
+      label: '窗口',
+      submenu: [
+        { role: 'minimize' },
+        { role: 'zoom' },
+        ...(isMac
+          ? [{ type: 'separator' }, { role: 'front' }]
+          : [{ role: 'close' }])
+      ]
+    }
+  ]
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+}
+
+// 自定义「关于」窗口：logo 居中显示在文字上方，解决原生弹窗图标偏左不居中的问题
+function showAboutWindow(): void {
+  const iconPath = app.isPackaged
+    ? join(process.resourcesPath, 'icon.png')
+    : join(__dirname, '../../resources/icon.png')
+
+  let logoDataUri = ''
+  try {
+    const b64 = readFileSync(iconPath).toString('base64')
+    logoDataUri = `data:image/png;base64,${b64}`
+  } catch {
+    logoDataUri = ''
+  }
+
+  // 读取主窗口实际生效的主题（data-theme），与 App 显示保持一致；不可用时回退到系统暗黑判断
+  const resolveDark = (): Promise<boolean> => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      return mainWindow.webContents
+        .executeJavaScript(`document.documentElement.getAttribute('data-theme')`)
+        .then((attr: unknown) => {
+          if (attr === 'dark') return true
+          if (attr === 'light') return false
+          return nativeTheme.shouldUseDarkColors
+        })
+        .catch(() => nativeTheme.shouldUseDarkColors)
+    }
+    return Promise.resolve(nativeTheme.shouldUseDarkColors)
+  }
+
+  resolveDark().then((dark) => {
+    const bg = dark ? '#09090b' : '#f5f5f4'
+    const fg = dark ? 'rgba(244,244,245,0.88)' : '#1e1e22'
+
+    const aboutWin = new BrowserWindow({
+      width: 320,
+      height: 250,
+      resizable: false,
+      minimizable: false,
+      maximizable: false,
+      alwaysOnTop: true,
+      center: true,
+      frame: false,
+      show: false,
+      backgroundColor: bg,
+      parent: mainWindow ?? undefined,
+      modal: true,
+      webPreferences: {
+        sandbox: true,
+        contextIsolation: true,
+        nodeIntegration: false
+      }
+    })
+
+    const html = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 24px;
+    text-align: center;
+    font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: ${bg};
+    color: ${fg};
+  }
+  img { width: 76px; height: 76px; border-radius: 16px; object-fit: contain; }
+  h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+  .ver { font-size: 12px; opacity: 0.5; }
+  .desc { font-size: 13px; line-height: 1.7; opacity: 0.7; max-width: 260px; }
+  .desc-en { margin-top: 4px; font-style: italic; font-size: 12px; opacity: 0.45; }
+</style>
+</head>
+<body>
+  <img src="${logoDataUri}" alt="logo" />
+  <h1>Snowball Pilot</h1>
+  <div class="ver">版本 1.0.0</div>
+  <div class="desc">
+    场外衍生品投资持仓管理工具
+    <div class="desc-en">for my beloved</div>
+  </div>
+</body>
+</html>`
+
+    aboutWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html))
+    aboutWin.once('ready-to-show', () => aboutWin.show())
+    // 点击窗口任意位置关闭
+    aboutWin.on('blur', () => aboutWin.close())
+  })
+}
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -18,11 +182,11 @@ function createWindow(): void {
     minWidth: 1024,
     minHeight: 680,
     show: false,
-    title: '雪球持仓管理',
+    title: 'Snowball Pilot',
     frame: false,
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 18 },
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#f5f5f4',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
@@ -33,6 +197,13 @@ function createWindow(): void {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow?.show()
+  })
+
+  // ESC 退出全屏
+  mainWindow.webContents.on('before-input-event', (_event, input) => {
+    if (input.key === 'Escape' && mainWindow?.isFullScreen()) {
+      mainWindow.setFullScreen(false)
+    }
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -48,6 +219,17 @@ function createWindow(): void {
 }
 
 app.whenReady().then(async () => {
+  // 设置 Dock 图标（打包后自动使用 .icns）
+  if (process.platform === 'darwin' && app.dock && !app.isPackaged) {
+    app.dock.setIcon(join(__dirname, '../../resources/icon.png'))
+  }
+
+  // 显式设置应用名，确保 macOS 菜单栏第一项显示「Snowball Pilot」而非默认的 Electron
+  app.setName('Snowball Pilot')
+
+  // 设置应用菜单（自定义「关于」弹窗使用应用自有 logo）
+  buildAppMenu()
+
   // 初始化数据库（异步）
   await initDatabase()
 
@@ -72,13 +254,72 @@ app.whenReady().then(async () => {
   })
 
   // 指数历史数据
-  ipcMain.handle('index-history:backfill', async (_event, days?: number) => {
-    return await backfillHistory(days || 365)
+  ipcMain.handle('index-history:backfill', async (_event, days?: number, clean?: boolean) => {
+    return await backfillHistory(days || 730, clean)
+  })
+  // 新增单个标的并补足历史
+  ipcMain.handle('index-history:backfill-code', async (_event, code: string, days?: number) => {
+    if (!code) return { code, saved: 0 }
+    return await backfillSingleCode(code, days || 730)
+  })
+  // 刷新：补足各标的缺失的至今天的收盘数据
+  ipcMain.handle('index-history:refresh', async () => {
+    return await refreshToToday()
   })
 
   ipcMain.handle('index-history:get', (_event, code: string, limit?: number) => {
     return getIndexHistory(code, limit)
   })
+
+  // 登录验证（主进程发起请求，绕过 CORS）
+  ipcMain.handle('auth:login', async (_event, username: string, password: string) => {
+    return new Promise((resolve) => {
+      const request = net.request({
+        method: 'POST',
+        url: 'http://8.159.158.153:6001/api/v1/auth/login/'
+      })
+      request.setHeader('Content-Type', 'application/json')
+
+      let body = ''
+      request.on('response', (response) => {
+        response.on('data', (chunk) => { body += chunk.toString() })
+        response.on('end', () => {
+          try {
+            const data = JSON.parse(body)
+            resolve({ ok: response.statusCode === 200, status: response.statusCode, data })
+          } catch {
+            resolve({ ok: false, status: response.statusCode, data: null })
+          }
+        })
+      })
+      request.on('error', (err) => {
+        resolve({ ok: false, status: 0, data: null, error: err.message })
+      })
+      request.write(JSON.stringify({ username, password }))
+      request.end()
+    })
+  })
+
+  // 服务健康检查
+  ipcMain.handle('auth:ping', async () => {
+    return new Promise((resolve) => {
+      const request = net.request({
+        method: 'GET',
+        url: 'http://8.159.158.153:6001/api/v1/auth/login/'
+      })
+      request.on('response', (response) => {
+        response.on('data', () => {})
+        response.on('end', () => resolve(true))
+      })
+      request.on('error', () => resolve(false))
+      request.end()
+    })
+  })
+
+  // K 线（蜡烛图）数据
+  ipcMain.handle('market:fetch-kline', async (_event, code: string, days?: number) =>
+    fetchKline(code, days || 365)
+  )
 
   createWindow()
 
@@ -107,8 +348,8 @@ app.whenReady().then(async () => {
   }
   scheduleDailySave()
 
-  // 启动时自动补足历史数据（仅首次或数据缺失时）
-  backfillHistory(365).catch((e) => console.error('Backfill failed:', e))
+  // 启动时自动补足历史数据（首次启动补足全部标的近2年；之后仅补足缺失的新标的）
+  ensureHistoryBackfilled().catch((e) => console.error('Backfill failed:', e))
 })
 
 app.on('window-all-closed', () => {

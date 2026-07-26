@@ -19,17 +19,26 @@ export function registerPositionHandlers(): void {
         product_name, broker, underlying, underlying_code, notional,
         trade_date, effective_date, maturity_date, initial_price,
         knock_in_pct, knock_out_pct, coupon_rate, margin_rate, observation_freq,
-        knock_in_observed, knock_out_observed, status, notes
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        knock_in_observed, knock_out_observed, status, notes,
+        structure_type, coupon_barrier_pct, coupon_freq,
+        contract_no, interest_start_date,
+        knock_out_dates, knock_out_barriers, knock_out_coupons,
+        knock_out_enhance_participation, knock_in_observation,
+        knock_in_strike_pct, knock_in_participation, max_loss_pct,
+        rebate_annual_pct, rebate_absolute_back_pct, rebate_absolute_front_pct,
+        accrual_basis, accrual_settle_tplus, dividend_coupon,
+        abs_fee_pct, annual_fee_pct, income_dividend_pct,
+        dividend_observation_dates, dividend_rate_pct
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       data.product_name,
       data.broker || '',
       data.underlying,
       data.underlying_code || '',
       data.notional,
-      data.trade_date,
-      data.effective_date,
-      data.maturity_date,
+      '',
+      '',
+      '',
       data.initial_price,
       data.knock_in_pct,
       data.knock_out_pct || 1.0,
@@ -39,7 +48,31 @@ export function registerPositionHandlers(): void {
       data.knock_in_observed || 0,
       data.knock_out_observed || 0,
       data.status || 'active',
-      data.notes || ''
+      data.notes || '',
+      data.structure_type || 'snowball',
+      data.coupon_barrier_pct || 0,
+      data.coupon_freq || '',
+      data.contract_no || '',
+      data.interest_start_date || '',
+      data.knock_out_dates || '',
+      data.knock_out_barriers || '',
+      data.knock_out_coupons || '',
+      data.knock_out_enhance_participation || 0,
+      data.knock_in_observation || 'daily',
+      data.knock_in_strike_pct || 100,
+      data.knock_in_participation || 100,
+      data.max_loss_pct || 0,
+      data.rebate_annual_pct || 0,
+      data.rebate_absolute_back_pct || 0,
+      data.rebate_absolute_front_pct || 0,
+      data.accrual_basis || 'both',
+      data.accrual_settle_tplus || 0,
+      data.dividend_coupon || 0,
+      data.abs_fee_pct || 0,
+      data.annual_fee_pct || 0,
+      data.income_dividend_pct || 0,
+      data.dividend_observation_dates || '',
+      data.dividend_rate_pct || 0
     ])
     return getLastInsertId()
   })
@@ -51,9 +84,18 @@ export function registerPositionHandlers(): void {
 
     const allowedFields = [
       'product_name', 'broker', 'underlying', 'underlying_code', 'notional',
-      'trade_date', 'effective_date', 'maturity_date', 'initial_price',
+      'initial_price',
       'knock_in_pct', 'knock_out_pct', 'coupon_rate', 'margin_rate', 'observation_freq',
-      'knock_in_observed', 'knock_out_observed', 'status', 'notes'
+      'knock_in_observed', 'knock_out_observed', 'status', 'notes',
+      'structure_type', 'coupon_barrier_pct', 'coupon_freq',
+      'contract_no', 'interest_start_date',
+      'knock_out_dates', 'knock_out_barriers', 'knock_out_coupons',
+      'knock_out_enhance_participation', 'knock_in_observation',
+      'knock_in_strike_pct', 'knock_in_participation', 'max_loss_pct',
+      'rebate_annual_pct', 'rebate_absolute_back_pct', 'rebate_absolute_front_pct',
+      'accrual_basis', 'accrual_settle_tplus', 'dividend_coupon',
+      'abs_fee_pct', 'annual_fee_pct', 'income_dividend_pct',
+      'dividend_observation_dates', 'dividend_rate_pct'
     ]
 
     for (const field of allowedFields) {

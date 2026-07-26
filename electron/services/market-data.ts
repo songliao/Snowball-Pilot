@@ -35,23 +35,28 @@ const INDEX_CODE_MAP: Record<string, string> = {
 }
 
 /**
+ * 将标的代码（如 000852.SH）转换为东方财富 secid（如 1.000852）
+ * 无法识别时返回 null
+ */
+export function toSecid(code: string): string | null {
+  if (INDEX_CODE_MAP[code]) return INDEX_CODE_MAP[code]
+  const parts = code.split('.')
+  if (parts.length === 2) {
+    const [numCode, market] = parts
+    const prefix = market === 'SH' ? '1' : '0'
+    return `${prefix}.${numCode}`
+  }
+  return null
+}
+
+/**
  * 从东方财富 API 获取实时行情
  */
 export async function fetchMarketPrice(code: string): Promise<MarketPriceResult | null> {
   try {
     // 转换代码格式
-    let secid = INDEX_CODE_MAP[code]
-    if (!secid) {
-      // 尝试自动转换: 000905.SH -> 1.000905, 399006.SZ -> 0.399006
-      const parts = code.split('.')
-      if (parts.length === 2) {
-        const [numCode, market] = parts
-        const prefix = market === 'SH' ? '1' : '0'
-        secid = `${prefix}.${numCode}`
-      } else {
-        return null
-      }
-    }
+    const secid = toSecid(code)
+    if (!secid) return null
 
     const url = `https://push2.eastmoney.com/api/qt/stock/get?secid=${secid}&fields=f43,f58,f170&ut=fa5fd1943c7b386f172d6893dbbd1`
 
@@ -86,17 +91,8 @@ export async function fetchMarketPrice(code: string): Promise<MarketPriceResult 
  */
 export async function fetchIndexQuote(code: string): Promise<IndexQuote | null> {
   try {
-    let secid = INDEX_CODE_MAP[code]
-    if (!secid) {
-      const parts = code.split('.')
-      if (parts.length === 2) {
-        const [numCode, market] = parts
-        const prefix = market === 'SH' ? '1' : '0'
-        secid = `${prefix}.${numCode}`
-      } else {
-        return null
-      }
-    }
+    const secid = toSecid(code)
+    if (!secid) return null
 
     const url = `https://push2.eastmoney.com/api/qt/stock/get?secid=${secid}&fields=f43,f44,f45,f46,f47,f48,f57,f58,f60,f169,f170,f86&ut=fa5fd1943c7b386f172d6893dbbd1`
 
@@ -152,4 +148,48 @@ export async function fetchMultiplePrices(
   }
 
   return results
+}
+
+export interface KLinePoint {
+  date: string
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: number
+}
+
+/**
+ * 从东方财富 K 线接口拉取历史 OHLC 数据（开高低收），用于绘制蜡烛图
+ */
+export async function fetchKline(code: string, days = 365): Promise<KLinePoint[]> {
+  const secid = toSecid(code)
+  if (!secid) return []
+  const url = `https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57&klt=101&fqt=0&end=20500101&lmt=${days}&ut=fa5fd1943c7b386f172d6893dbbd1`
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+        Referer: 'https://quote.eastmoney.com/'
+      }
+    })
+    if (!response.ok) return []
+    const json = await response.json()
+    const data = json?.data
+    if (!data || !data.klines) return []
+    return data.klines.map((line: string) => {
+      const parts = line.split(',')
+      return {
+        date: parts[0],
+        open: parseFloat(parts[1]),
+        close: parseFloat(parts[2]),
+        low: parseFloat(parts[3]),
+        high: parseFloat(parts[4]),
+        volume: parseFloat(parts[5])
+      }
+    })
+  } catch (error) {
+    console.error('Failed to fetch kline:', error)
+    return []
+  }
 }
