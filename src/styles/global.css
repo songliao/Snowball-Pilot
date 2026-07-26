@@ -89,6 +89,7 @@ html, body {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
+  height: 100%;
 }
 
 .stat-card .stat-icon {
@@ -120,7 +121,7 @@ html, body {
 
 /* ===== Glass Card (毛玻璃) ===== */
 .glass-card {
-  border-radius: 12px;
+  border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.12) !important;
   background: rgba(255, 255, 255, 0.06) !important;
   backdrop-filter: blur(16px) saturate(1.4);
@@ -486,6 +487,11 @@ html, body {
 .icon-btn.ant-btn .nav-icon-circle:hover {
   background: rgba(128, 128, 128, 0.18);
   transform: scale(1.06);
+}
+
+/* 柔和主按钮文字：避免纯白过于刺眼 */
+.soft-primary-text.ant-btn-primary {
+  color: rgba(255, 255, 255, 0.82) !important;
 }
 
 /* ===== Descriptions ===== */

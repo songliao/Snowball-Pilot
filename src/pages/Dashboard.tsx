@@ -79,13 +79,13 @@ export default function Dashboard() {
 
   return (
     <div>
-      {/* 投资一览 */}
-      <div style={{ marginBottom: 12 }}>
-        <span style={{ fontSize: 13, fontWeight: 600, opacity: 0.7 }}>投资一览</span>
+      {/* 页面标题（保持卡片原位，仅升级为页面标题，不改变卡片位置） */}
+      <div className="page-header" style={{ marginBottom: 12 }}>
+        <h2 style={{ margin: 0 }}>投资总览</h2>
       </div>
-      <Row gutter={[12, 12]} style={{ marginBottom: 20 }} align="middle">
+      <Row gutter={[12, 12]} style={{ marginTop: -4, marginBottom: 20 }} align="stretch">
         <Col span={6}>
-          <Card className="stat-card glass-card" variant="borderless">
+          <Card className="stat-card glass-card" variant="borderless" style={{ height: '100%' }}>
             <div className="stat-card-inner">
               <div>
                 <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 4 }}>名义本金</div>
@@ -99,7 +99,7 @@ export default function Dashboard() {
           </Card>
         </Col>
         <Col span={6}>
-          <Card className="stat-card glass-card" variant="borderless">
+          <Card className="stat-card glass-card" variant="borderless" style={{ height: '100%' }}>
             <div className="stat-card-inner">
               <div>
                 <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 4 }}>保证金</div>
@@ -113,7 +113,7 @@ export default function Dashboard() {
           </Card>
         </Col>
         <Col span={6}>
-          <Card className="stat-card glass-card" variant="borderless">
+          <Card className="stat-card glass-card" variant="borderless" style={{ height: '100%' }}>
             <div className="stat-card-inner">
               <div>
                 <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 4 }}>合约数</div>

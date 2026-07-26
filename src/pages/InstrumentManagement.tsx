@@ -317,9 +317,11 @@ export default function InstrumentManagement() {
         style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 12 }}
       >
         <h2 style={{ margin: 0 }}>标的管理</h2>
-        <Space>
+        <Space align="center" style={{ marginTop: -3 }}>
           <Button
             type="primary"
+            className="soft-primary-text"
+            style={{ height: 31, fontWeight: 500 }}
             icon={<PlusOutlined />}
             onClick={() => setAddOpen(true)}
           >
@@ -329,11 +331,7 @@ export default function InstrumentManagement() {
             styles={{ root: tooltipRootStyle, body: tooltipBodyStyle }}
             title="重新拉取并覆盖全部标的近 2 年的完整历史行情数据（耗时较长，会覆盖已有记录）"
           >
-            <Button
-              icon={<HistoryOutlined spin={backfilling} />}
-              loading={backfilling}
-              onClick={handleBackfill}
-            >
+            <Button style={{ height: 31, fontWeight: 500 }} icon={<HistoryOutlined spin={backfilling} />} loading={backfilling} onClick={handleBackfill}>
               补足历史数据
             </Button>
           </Tooltip>
@@ -341,7 +339,7 @@ export default function InstrumentManagement() {
             styles={{ root: tooltipRootStyle, body: tooltipBodyStyle }}
             title="增量补足各标的缺失的至今天的收盘数据，不重建全量历史（仅补充缺口，已有数据不动）"
           >
-            <Button icon={<ReloadOutlined spin={refreshing} />} loading={refreshing} onClick={handleRefresh}>
+            <Button style={{ height: 31, fontWeight: 500 }} icon={<ReloadOutlined spin={refreshing} />} loading={refreshing} onClick={handleRefresh}>
               更新
             </Button>
           </Tooltip>

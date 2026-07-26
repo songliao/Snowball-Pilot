@@ -182,7 +182,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               </div>
             }
           >
-            <Button block icon={<PlusOutlined />} style={{ height: 36, fontWeight: 500 }}>
+            <Button block icon={<PlusOutlined />} style={{ height: 32, fontWeight: 500 }}>
               新增持仓
             </Button>
           </Popover>

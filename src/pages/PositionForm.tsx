@@ -275,8 +275,8 @@ export default function PositionForm() {
           <Tag className={`structure-tag ${isPhoenix ? 'structure-tag--phoenix' : 'structure-tag--snowball'}`}>{label}</Tag>
         </div>
         <Space style={{ marginTop: 18 }}>
-          <Button style={{ width: 96 }} onClick={() => navigate(-1)}>取消</Button>
-          <Button type="primary" style={{ width: 96 }} loading={saving} onClick={() => form.submit()}>
+          <Button style={{ width: 96, height: 31 }} onClick={() => navigate(-1)}>取消</Button>
+          <Button type="primary" style={{ width: 96, height: 31 }} loading={saving} onClick={() => form.submit()}>
             保存
           </Button>
         </Space>

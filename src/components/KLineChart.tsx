@@ -247,7 +247,12 @@ export default function KLineChart({ code }: { code: string }) {
         }}
         style={{ marginBottom: 12 }}
       />
-      <ReactECharts option={option} style={{ height: 420 }} notMerge />
+      <ReactECharts
+        option={option}
+        style={{ height: 420, background: theme === 'dark' ? '#18181b' : '#ffffff' }}
+        opts={{ renderer: 'svg' }}
+        notMerge
+      />
     </div>
   )
 }
