@@ -48,8 +48,8 @@ export default function Dashboard() {
   const activePositions = positions.filter((p) => p.status === 'active')
   const activeNotional = activePositions.reduce((sum, p) => sum + p.notional, 0)
   const totalNotional = positions.reduce((sum, p) => sum + p.notional, 0)
-  const activeMargin = activePositions.reduce((sum, p) => sum + p.notional * (p.margin_rate || 0), 0)
-  const totalMargin = positions.reduce((sum, p) => sum + p.notional * (p.margin_rate || 0), 0)
+  const activeMargin = activePositions.reduce((sum, p) => sum + p.notional * ((p.margin_ratio ?? p.margin_rate) || 0), 0)
+  const totalMargin = positions.reduce((sum, p) => sum + p.notional * ((p.margin_ratio ?? p.margin_rate) || 0), 0)
   const activeContracts = activePositions.length
   const totalContracts = positions.length
 

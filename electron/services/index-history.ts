@@ -179,7 +179,9 @@ function getBackfillTargets(): string[] {
   const set = new Set<string>()
   for (const idx of TRACKED_INDICES) set.add(idx.code)
   const rows = queryAll<{ underlying_code: string }>(
-    "SELECT DISTINCT underlying_code FROM positions WHERE underlying_code IS NOT NULL AND underlying_code != ''"
+    `SELECT underlying_code FROM snowball_positions WHERE underlying_code IS NOT NULL AND underlying_code != ''
+     UNION
+     SELECT underlying_code FROM phoenix_positions WHERE underlying_code IS NOT NULL AND underlying_code != ''`
   )
   for (const r of rows) {
     if (r.underlying_code) set.add(r.underlying_code)

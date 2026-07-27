@@ -18,9 +18,13 @@ interface PositionRow {
 export async function checkAndNotify(mainWindow: BrowserWindow | null): Promise<string[]> {
   const notifications: string[] = []
 
-  // 获取所有活跃持仓
+  // 获取所有活跃持仓（雪球 + 凤凰 两张表）
   const positions = queryAll<PositionRow>(
-    "SELECT * FROM positions WHERE status IN ('active', 'knocked_in')"
+    `SELECT product_name, underlying_code, initial_price, knock_in_barrier AS knock_in_pct, status
+       FROM snowball_positions WHERE status IN ('active', 'knocked_in')
+     UNION ALL
+     SELECT product_name, underlying_code, initial_price, knock_in_barrier AS knock_in_pct, status
+       FROM phoenix_positions WHERE status IN ('active', 'knocked_in')`
   )
 
   for (const pos of positions) {

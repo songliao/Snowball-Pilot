@@ -322,6 +322,144 @@ html, body {
   border-color: rgba(251, 113, 133, 0.4);
 }
 
+/* ===== 状态标签（存续中 / 已敲入 / 已敲出 / 已到期）：磨砂玻璃质感 ===== */
+.status-tag.ant-tag {
+  margin: 0;
+  padding: 2px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  line-height: 16px;
+  border-radius: 999px;
+  backdrop-filter: blur(12px) saturate(160%);
+  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow:
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.75),
+    0 1px 5px rgba(15, 23, 42, 0.1);
+}
+.status-tag.ant-tag.status-tag--active {
+  background: rgba(59, 130, 246, 0.16);
+  color: #1d4ed8;
+  border-color: rgba(59, 130, 246, 0.32);
+}
+.status-tag.ant-tag.status-tag--knocked_in {
+  background: rgba(249, 115, 22, 0.16);
+  color: #c2410c;
+  border-color: rgba(249, 115, 22, 0.32);
+}
+.status-tag.ant-tag.status-tag--knocked_out {
+  background: rgba(34, 197, 94, 0.16);
+  color: #15803d;
+  border-color: rgba(34, 197, 94, 0.32);
+}
+.status-tag.ant-tag.status-tag--matured {
+  background: rgba(100, 116, 139, 0.14);
+  color: #475569;
+  border-color: rgba(100, 116, 139, 0.3);
+}
+[data-theme='dark'] .status-tag.ant-tag {
+  border-color: rgba(255, 255, 255, 0.18);
+  box-shadow:
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.2),
+    0 1px 6px rgba(0, 0, 0, 0.35);
+}
+[data-theme='dark'] .status-tag.ant-tag.status-tag--active {
+  background: rgba(96, 165, 250, 0.18);
+  color: #93c5fd;
+  border-color: rgba(96, 165, 250, 0.4);
+}
+[data-theme='dark'] .status-tag.ant-tag.status-tag--knocked_in {
+  background: rgba(251, 146, 60, 0.18);
+  color: #fdba74;
+  border-color: rgba(251, 146, 60, 0.4);
+}
+[data-theme='dark'] .status-tag.ant-tag.status-tag--knocked_out {
+  background: rgba(74, 222, 128, 0.18);
+  color: #86efac;
+  border-color: rgba(74, 222, 128, 0.4);
+}
+[data-theme='dark'] .status-tag.ant-tag.status-tag--matured {
+  background: rgba(148, 163, 184, 0.16);
+  color: #cbd5e1;
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+/* ===== 详情页操作按钮：与状态标签同语言的柔和色调 ===== */
+.action-btn.ant-btn {
+  height: 32px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 8px;
+  box-shadow: none !important;
+}
+.action-btn.ant-btn .anticon {
+  font-size: 13px;
+}
+/* 标记敲入：柔和橙 */
+.action-btn--ki.ant-btn {
+  background: rgba(249, 115, 22, 0.08) !important;
+  border-color: rgba(249, 115, 22, 0.22) !important;
+  color: #c2410c !important;
+}
+.action-btn--ki.ant-btn:hover {
+  background: rgba(249, 115, 22, 0.14) !important;
+  border-color: rgba(249, 115, 22, 0.35) !important;
+  color: #9a3412 !important;
+}
+/* 敲出：柔和绿 */
+.action-btn--ko.ant-btn {
+  background: rgba(34, 197, 94, 0.08) !important;
+  border-color: rgba(34, 197, 94, 0.22) !important;
+  color: #15803d !important;
+}
+.action-btn--ko.ant-btn:hover {
+  background: rgba(34, 197, 94, 0.14) !important;
+  border-color: rgba(34, 197, 94, 0.35) !important;
+  color: #166534 !important;
+}
+/* 已敲入（撤销）：柔和红 */
+.action-btn--kied.ant-btn {
+  background: rgba(244, 63, 94, 0.08) !important;
+  border-color: rgba(244, 63, 94, 0.22) !important;
+  color: #be123c !important;
+}
+.action-btn--kied.ant-btn:hover {
+  background: rgba(244, 63, 94, 0.14) !important;
+  border-color: rgba(244, 63, 94, 0.35) !important;
+  color: #9f1239 !important;
+}
+[data-theme='dark'] .action-btn--ki.ant-btn {
+  background: rgba(251, 146, 60, 0.1) !important;
+  border-color: rgba(251, 146, 60, 0.28) !important;
+  color: #fdba74 !important;
+}
+[data-theme='dark'] .action-btn--ki.ant-btn:hover {
+  background: rgba(251, 146, 60, 0.18) !important;
+  border-color: rgba(251, 146, 60, 0.42) !important;
+  color: #fed7aa !important;
+}
+[data-theme='dark'] .action-btn--ko.ant-btn {
+  background: rgba(74, 222, 128, 0.1) !important;
+  border-color: rgba(74, 222, 128, 0.28) !important;
+  color: #86efac !important;
+}
+[data-theme='dark'] .action-btn--ko.ant-btn:hover {
+  background: rgba(74, 222, 128, 0.18) !important;
+  border-color: rgba(74, 222, 128, 0.42) !important;
+  color: #bbf7d0 !important;
+}
+[data-theme='dark'] .action-btn--kied.ant-btn {
+  background: rgba(251, 113, 133, 0.1) !important;
+  border-color: rgba(251, 113, 133, 0.28) !important;
+  color: #fda4af !important;
+}
+[data-theme='dark'] .action-btn--kied.ant-btn:hover {
+  background: rgba(251, 113, 133, 0.18) !important;
+  border-color: rgba(251, 113, 133, 0.42) !important;
+  color: #fecdd3 !important;
+}
+
 /* ===== Table ===== */
 .ant-table {
   font-size: 13px;
@@ -466,6 +604,46 @@ html, body {
 [data-theme='light'] .nav-icon-circle--active {
   background: rgba(0, 0, 0, 0.06);
   border-color: rgba(0, 0, 0, 0.1);
+}
+
+/* 操作按钮内的圆形图标：标记敲入（警告橙）/ 已敲入（红）/ 敲出（金币金），与 action-btn 同色调 */
+.nav-icon-circle--ki {
+  background: rgba(249, 115, 22, 0.08);
+  border-color: rgba(249, 115, 22, 0.22);
+  color: #c2410c;
+}
+.nav-icon-circle--kied {
+  background: rgba(244, 63, 94, 0.14);
+  border-color: rgba(244, 63, 94, 0.22);
+  color: #be123c;
+}
+.nav-icon-circle--ko {
+  background: rgba(34, 197, 94, 0.08);
+  border-color: rgba(34, 197, 94, 0.22);
+  color: #15803d;
+}
+[data-theme='dark'] .nav-icon-circle--ki {
+  background: rgba(251, 146, 60, 0.1);
+  border-color: rgba(251, 146, 60, 0.28);
+  color: #fdba74;
+}
+[data-theme='dark'] .nav-icon-circle--kied {
+  background: rgba(251, 113, 133, 0.16);
+  border-color: rgba(251, 113, 133, 0.28);
+  color: #fda4af;
+}
+[data-theme='dark'] .nav-icon-circle--ko {
+  background: rgba(74, 222, 128, 0.1);
+  border-color: rgba(74, 222, 128, 0.28);
+  color: #86efac;
+}
+/* 在按钮内收紧尺寸与间距 */
+.action-btn.ant-btn .nav-icon-circle {
+  width: 22px;
+  height: 22px;
+  font-size: 12px;
+  margin-right: 6px;
+  transition: none;
 }
 
 /* ===== 操作列图标按钮：去掉 antd text 按钮的方形背景/边框，仅保留圆形图标 ===== */

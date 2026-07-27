@@ -1,45 +1,33 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
-  Card, Descriptions, Tag, Button, Space, Timeline, Modal, InputNumber,
-  DatePicker, message, Statistic, Row, Col, Popconfirm
+  Card, Tag, Button, Space, message, Row, Col, Popconfirm, Modal, DatePicker, InputNumber
 } from 'antd'
 import {
   ArrowLeftOutlined, EditOutlined, SyncOutlined,
-  WarningOutlined, CheckCircleOutlined, ClockCircleOutlined
+  WarningOutlined, DollarOutlined, ClockCircleOutlined, RollbackOutlined
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { usePositionStore } from '../stores/positionStore'
 import { useMarketStore } from '../stores/marketStore'
-import {
-  calcPnL,
-  calcKnockInPrice, calcKnockOutPrice, calcSafetyMargin
-} from '../utils/calc'
-import { formatMoney, formatPercent, formatDate, STATUS_MAP, EVENT_TYPE_MAP, FREQ_MAP } from '../utils/format'
-import PriceChart from '../components/PriceChart'
-
-const parseJsonArray = <T,>(s?: string): T[] => {
-  try {
-    return s ? (JSON.parse(s) as T[]) : []
-  } catch {
-    return []
-  }
-}
+import { computeKnockOutProfit } from '../utils/calc'
+import { formatDate, STATUS_MAP } from '../utils/format'
+import PositionForm from './PositionForm'
 
 export default function PositionDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { current, fetchById, events, fetchEvents, updateStatus, addEvent } = usePositionStore()
-  const { latestPrices, fetchLatestPrice, fetchRemotePrice, fetchPriceHistory, upsertPrice } = useMarketStore()
-  const [priceModalOpen, setPriceModalOpen] = useState(false)
-  const [manualPrice, setManualPrice] = useState<number>(0)
-  const [manualDate, setManualDate] = useState(dayjs())
+  const { current, fetchById, updateStatus } = usePositionStore()
+  const { latestPrices, prices, fetchLatestPrice, fetchRemotePrice, fetchPriceHistory } = useMarketStore()
+  const [kiModalOpen, setKiModalOpen] = useState(false)
+  const [kiDate, setKiDate] = useState<dayjs.Dayjs | null>(dayjs())
+  const [endModalOpen, setEndModalOpen] = useState(false)
+  const [endAction, setEndAction] = useState<'knocked_out' | 'matured'>('knocked_out')
+  const [endDate, setEndDate] = useState<dayjs.Dayjs | null>(dayjs())
+  const [endPayoff, setEndPayoff] = useState<number | null>(null)
 
   useEffect(() => {
-    if (id) {
-      fetchById(Number(id))
-      fetchEvents(Number(id))
-    }
+    if (id) fetchById(Number(id))
   }, [id])
 
   useEffect(() => {
@@ -53,33 +41,114 @@ export default function PositionDetail() {
 
   const pos = current
   const currentPrice = latestPrices[pos.underlying_code]
-  const knockInPrice = calcKnockInPrice(pos.initial_price, pos.knock_in_pct)
-  const knockOutPrice = calcKnockOutPrice(pos.initial_price, pos.knock_out_pct)
-  const safetyMargin = currentPrice ? calcSafetyMargin(currentPrice, knockInPrice) : null
-  const { pnl, pnlRate, type } = calcPnL(pos, currentPrice)
+  const priceSeries = prices[pos.underlying_code] || []
+  const changePct = (() => {
+    if (priceSeries.length >= 2) {
+      const last = priceSeries[priceSeries.length - 1]
+      const prev = priceSeries[priceSeries.length - 2]
+      if (prev.price) return ((last.price - prev.price) / prev.price) * 100
+    }
+    return null
+  })()
+  const up = changePct != null ? changePct >= 0 : true
+  const color = up ? '#ef4444' : '#22c55e'
+  const koDates = pos.knock_out_dates ? (JSON.parse(pos.knock_out_dates) as string[]) : []
+  const koBarriers = pos.knock_out_barriers ? (JSON.parse(pos.knock_out_barriers) as number[]) : []
+  const koCoupons = pos.knock_out_coupons ? (JSON.parse(pos.knock_out_coupons) as number[]) : []
+  // 最近（离今天最近）敲出观察日，及其对应障碍价与票息
+  const today = dayjs()
+  let nearestKoIdx = -1
+  let nearestKoDiff = Infinity
+  koDates.forEach((d, i) => {
+    const diff = Math.abs(dayjs(d).diff(today, 'day'))
+    if (diff < nearestKoDiff) {
+      nearestKoDiff = diff
+      nearestKoIdx = i
+    }
+  })
+  const nearestKoDate = nearestKoIdx >= 0 ? koDates[nearestKoIdx] : null
+  const nearestKoBarrier = nearestKoIdx >= 0 ? koBarriers[nearestKoIdx] : null
+  const nearestKoCoupon = nearestKoIdx >= 0 ? koCoupons[nearestKoIdx] : null
+  const nearestKoBarrierPrice =
+    nearestKoBarrier != null && pos.initial_price
+      ? pos.initial_price * (nearestKoBarrier / 100)
+      : null
+  // 剩余自然日（不含当天）：从明天起到最近敲出观察日的天数
+  const koRemainingDays =
+    nearestKoDate != null
+      ? Math.max(0, dayjs(nearestKoDate).startOf('day').diff(dayjs().startOf('day'), 'day'))
+      : null
+  // 点位差距：敲出观察点位 / 现价 - 1；负=已在敲出线上，正=还需的涨幅
+  const koGapPct =
+    nearestKoBarrierPrice != null && currentPrice
+      ? (nearestKoBarrierPrice / currentPrice - 1) * 100
+      : null
+  // 敲出收益 = 票息 + 返息 - 交易费用
+  const koProfit =
+    pos.notional != null && nearestKoDate
+      ? computeKnockOutProfit({
+          notional: pos.notional,
+          couponPct: nearestKoCoupon ?? 0,
+          tradeStartDate: pos.trade_start_date,
+          koObservationDate: dayjs(nearestKoDate).format('YYYY-MM-DD'),
+          accrualBasis: pos.accrual_basis,
+          accrualSettleTplus: pos.accrual_settle_tplus,
+          rebateAnnualPct: pos.rebate_annual_pct,
+          rebateAbsFrontPct: pos.rebate_absolute_front_pct,
+          rebateAbsBackPct: pos.rebate_absolute_back_pct,
+          absFeePct: pos.abs_fee_pct,
+          annualFeePct: pos.annual_fee_pct,
+          incomeDividendPct: pos.income_dividend_pct
+        })
+      : null
   const statusInfo = STATUS_MAP[pos.status] || { label: pos.status, color: 'default' }
 
-  const handleStatusChange = async (status: string) => {
-    await updateStatus(pos.id!, status)
-    const eventType = status === 'knocked_in' ? 'knock_in' : status === 'knocked_out' ? 'knock_out' : 'maturity'
-    await addEvent({
-      position_id: pos.id!,
-      event_type: eventType,
-      event_date: dayjs().format('YYYY-MM-DD'),
-      description: `状态变更为：${STATUS_MAP[status]?.label || status}`
-    })
+  const handleStatusChange = async (status: string, kiDateStr?: string) => {
+    await updateStatus(
+      pos.id!,
+      status,
+      pos.structure_type,
+      status === 'knocked_in' ? true : undefined,
+      kiDateStr
+    )
     message.success('状态已更新')
     fetchById(pos.id!)
   }
 
-  const handleManualPrice = async () => {
-    if (!manualPrice || manualPrice <= 0) {
-      message.warning('请输入有效价格')
-      return
-    }
-    await upsertPrice(pos.underlying_code, manualPrice, manualDate.format('YYYY-MM-DD'))
-    setPriceModalOpen(false)
-    message.success('价格已更新')
+  const handleKiConfirm = async () => {
+    setKiModalOpen(false)
+    const dateStr = kiDate ? kiDate.format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD')
+    await handleStatusChange('knocked_in', dateStr)
+  }
+
+  const handleRevokeKnockIn = async () => {
+    await updateStatus(pos.id!, 'active', pos.structure_type, false)
+    message.success('已撤回敲入状态')
+    fetchById(pos.id!)
+  }
+
+  const handleRevokeEnd = async () => {
+    // 撤销了结：恢复为敲入前（或存续）状态，保留敲入状态与敲入日期，仅清除了结日期/收益
+    const prevStatus = pos.is_ki ? 'knocked_in' : 'active'
+    await updateStatus(pos.id!, prevStatus, pos.structure_type, undefined, undefined, null, null)
+    message.success('已撤销了结')
+    fetchById(pos.id!)
+  }
+
+  const handleEndConfirm = async () => {
+    setEndModalOpen(false)
+    const dateStr = endDate ? endDate.format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD')
+    await updateStatus(
+      pos.id!,
+      endAction,
+      pos.structure_type,
+      undefined,
+      undefined,
+      dateStr,
+      endPayoff ?? 0
+    )
+    message.success('状态已更新')
+    fetchById(pos.id!)
   }
 
   const handleFetchPrice = async () => {
@@ -92,9 +161,9 @@ export default function PositionDetail() {
   }
 
   return (
-    <div>
+    <div style={{ marginTop: -16 }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 16, marginBottom: 24 }}>
         <Space align="center" size={12}>
           <Button
             type="text"
@@ -102,230 +171,282 @@ export default function PositionDetail() {
             onClick={() => navigate('/positions')}
             style={{ width: 32, height: 32, padding: 0, borderRadius: 6 }}
           />
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 18, fontWeight: 600 }}>{pos.product_name}</span>
-              <Tag color={statusInfo.color}>{statusInfo.label}</Tag>
-            </div>
-            <div style={{ fontSize: 13, opacity: 0.45, marginTop: 2 }}>
-              {pos.underlying_code || pos.underlying} · {pos.broker || '未知交易对手'}
-              {pos.contract_no ? ` · ${pos.contract_no}` : ''}
-            </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 18, fontWeight: 600 }}>{pos.product_name}</span>
+            <Tag className={`status-tag status-tag--${pos.status}`}>{statusInfo.label}</Tag>
+            {!!pos.is_ki && pos.status !== 'knocked_in' && (
+              <Tag className="status-tag status-tag--knocked_in">
+                敲入于{pos.knock_in_date ? formatDate(pos.knock_in_date) : ''}
+              </Tag>
+            )}
           </div>
         </Space>
         <Space>
-          <Button icon={<EditOutlined />} onClick={() => navigate(`/positions/${pos.id}/edit`)}>
-            编辑
-          </Button>
-          {pos.status === 'active' && (
-            <>
-              <Popconfirm title="确认标记为已敲入？" onConfirm={() => handleStatusChange('knocked_in')}>
-                <Button danger icon={<WarningOutlined />}>敲入</Button>
-              </Popconfirm>
-              <Popconfirm title="确认标记为已敲出？" onConfirm={() => handleStatusChange('knocked_out')}>
-                <Button icon={<CheckCircleOutlined />} style={{ color: '#52c41a', borderColor: '#52c41a' }}>
-                  敲出
-                </Button>
-              </Popconfirm>
-            </>
+          {/* 敲入 / 已敲入：互斥，共用第一个位置槽，保证后续按钮位置固定 */}
+          {(pos.status === 'active' || pos.status === 'knocked_out' || pos.status === 'matured') && !pos.is_ki && (
+            <Button
+              className="action-btn action-btn--ki"
+              icon={<span className="nav-icon-circle nav-icon-circle--ki"><WarningOutlined /></span>}
+              onClick={() => {
+                setKiDate(dayjs())
+                setKiModalOpen(true)
+              }}
+            >
+              标记敲入
+            </Button>
           )}
-          {(pos.status === 'active' || pos.status === 'knocked_in') && (
-            <Popconfirm title="确认标记为已到期？" onConfirm={() => handleStatusChange('matured')}>
-              <Button icon={<ClockCircleOutlined />}>到期</Button>
+          {pos.status === 'knocked_in' && (
+            <Popconfirm
+              title="确认撤销敲入？"
+              description="将清空敲入状态与敲入日期"
+              onConfirm={handleRevokeKnockIn}
+            >
+              <Button className="action-btn action-btn--kied" icon={<span className="nav-icon-circle nav-icon-circle--kied"><RollbackOutlined /></span>}>
+                敲入于{pos.knock_in_date ? formatDate(pos.knock_in_date) : ''}
+              </Button>
             </Popconfirm>
           )}
+          {(pos.status === 'active' || pos.status === 'knocked_in') && (
+            <Button
+              className="action-btn action-btn--ko"
+              icon={<span className="nav-icon-circle nav-icon-circle--ko"><DollarOutlined /></span>}
+              onClick={() => {
+                setEndAction('knocked_out')
+                setEndDate(dayjs())
+                setEndPayoff(null)
+                setEndModalOpen(true)
+              }}
+            >
+              标记敲出
+            </Button>
+          )}
+          {(pos.status === 'active' || pos.status === 'knocked_in') && (
+            <Button
+              className="action-btn"
+              icon={<span className="nav-icon-circle"><ClockCircleOutlined /></span>}
+              onClick={() => {
+                setEndAction('matured')
+                setEndDate(dayjs())
+                setEndPayoff(null)
+                setEndModalOpen(true)
+              }}
+            >
+              标记到期
+            </Button>
+          )}
+          {(pos.status === 'knocked_out' || pos.status === 'matured') && (
+            <Popconfirm
+              title="确认撤销了结？"
+              description="将恢复至敲入/存续状态，并清除了结日期与收益"
+              onConfirm={handleRevokeEnd}
+            >
+              <Button
+                className="action-btn"
+                icon={<span className="nav-icon-circle"><RollbackOutlined /></span>}
+              >
+                撤销{pos.status === 'knocked_out' ? '敲出' : '到期'}
+              </Button>
+            </Popconfirm>
+          )}
+          <Button className="action-btn" icon={<span className="nav-icon-circle"><EditOutlined /></span>} onClick={() => navigate(`/positions/${pos.id}/edit`)}>
+            编辑合约
+          </Button>
         </Space>
       </div>
 
       {/* Metrics */}
-      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        <Col span={6}>
-          <Card className="stat-card content-card" variant="borderless">
-            <Statistic
-              title={`浮动盈亏（${type}）`}
-              value={pnl}
-              precision={2}
-              valueStyle={{ color: pnl >= 0 ? '#52c41a' : '#ff4d4f' }}
-              prefix={pnl >= 0 ? '+' : ''}
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card className="stat-card content-card" variant="borderless">
-            <Statistic
-              title="收益率"
-              value={pnlRate}
-              precision={2}
-              suffix="%"
-              valueStyle={{ color: pnlRate >= 0 ? '#52c41a' : '#ff4d4f' }}
-            />
-          </Card>
-        </Col>
-      </Row>
-
-      {/* Contract Details */}
-      <Card
-        title="合约要素"
-        variant="borderless"
-        className="content-card"
-        style={{ marginBottom: 24 }}
-      >
-        <Descriptions bordered column={3} size="small">
-          <Descriptions.Item label="券商">{pos.broker || '—'}</Descriptions.Item>
-          <Descriptions.Item label="标的">{pos.underlying_code || pos.underlying || '—'}</Descriptions.Item>
-          <Descriptions.Item label="名义本金">
-            <span style={{ fontWeight: 500 }}>{formatMoney(pos.notional)}</span>
-          </Descriptions.Item>
-          <Descriptions.Item label="年化票息率">
-            <span style={{ fontWeight: 500 }}>{formatPercent(pos.coupon_rate)}</span>
-          </Descriptions.Item>
-          <Descriptions.Item label="观察频率">{FREQ_MAP[pos.observation_freq] || pos.observation_freq}</Descriptions.Item>
-          <Descriptions.Item label="期初价格">
-            <span style={{ fontWeight: 500 }}>{pos.initial_price.toFixed(2)}</span>
-          </Descriptions.Item>
-          <Descriptions.Item label="敲入价格">
-            <span style={{ color: '#ff4d4f', fontWeight: 500 }}>{knockInPrice.toFixed(2)}</span>
-            <span style={{ opacity: 0.45, marginLeft: 4, fontSize: 12 }}>({formatPercent(pos.knock_in_pct, 0)})</span>
-          </Descriptions.Item>
-          <Descriptions.Item label="敲出价格">
-            <span style={{ color: '#52c41a', fontWeight: 500 }}>{knockOutPrice.toFixed(2)}</span>
-            <span style={{ opacity: 0.45, marginLeft: 4, fontSize: 12 }}>({formatPercent(pos.knock_out_pct, 0)})</span>
-          </Descriptions.Item>
-          <Descriptions.Item label="当前价格">
-            <Space>
-              <span style={{ fontWeight: 600, fontSize: 15 }}>
-                {currentPrice ? currentPrice.toFixed(2) : '未录入'}
-              </span>
-              <Button size="small" icon={<SyncOutlined />} onClick={handleFetchPrice}>拉取</Button>
-              <Button size="small" onClick={() => setPriceModalOpen(true)}>手动</Button>
-            </Space>
-          </Descriptions.Item>
-          <Descriptions.Item label="安全垫">
-            {safetyMargin !== null ? (
-              <span style={{
-                color: safetyMargin < 0.05 ? '#ff4d4f' : safetyMargin < 0.1 ? '#faad14' : '#52c41a',
-                fontWeight: 600
-              }}>
-                {formatPercent(safetyMargin, 1)}
-              </span>
-            ) : '—'}
-          </Descriptions.Item>
-          <Descriptions.Item label="备注">{pos.notes || '—'}</Descriptions.Item>
-        </Descriptions>
-      </Card>
-
-      {/* 雪球簿记信息 */}
-      {pos.structure_type !== 'phoenix' && (
-        <Card
-          title="雪球簿记"
-          variant="borderless"
-          className="content-card"
-          style={{ marginBottom: 24 }}
-        >
-          {(() => {
-    const koBarriers = parseJsonArray<number>(pos.knock_out_barriers)
-    const koCoupons = parseJsonArray<number>(pos.knock_out_coupons)
-            const joinPct = (arr: number[]) => (arr.length ? arr.map((v) => `${v}%`).join('、') : '—')
-            const joinDates = (arr: string[]) => (arr.length ? arr.map((d) => formatDate(d)).join('、') : '—')
-            return (
-              <Descriptions bordered column={3} size="small">
-                <Descriptions.Item label="合约编号">{pos.contract_no || '—'}</Descriptions.Item>
-                <Descriptions.Item label="敲入观察方式">
-                  {pos.knock_in_observation === 'maturity' ? '到期观察' : '每日观察'}
-                </Descriptions.Item>
-                <Descriptions.Item label="敲出障碍价格" span={2}>{joinPct(koBarriers)}</Descriptions.Item>
-                <Descriptions.Item label="敲出票息" span={2}>{joinPct(koCoupons)}</Descriptions.Item>
-                <Descriptions.Item label="敲出增强参与率">
-                  {formatPercent(pos.knock_out_enhance_participation ?? 0)}
-                </Descriptions.Item>
-                <Descriptions.Item label="红利票息">
-                  {formatPercent(pos.dividend_coupon ?? 0)}
-                </Descriptions.Item>
-                <Descriptions.Item label="敲入执行价格">{formatPercent(pos.knock_in_strike_pct ?? 0)}</Descriptions.Item>
-                <Descriptions.Item label="敲入参与率">{formatPercent(pos.knock_in_participation ?? 0)}</Descriptions.Item>
-                <Descriptions.Item label="保证金比例">{formatPercent(pos.margin_rate)}</Descriptions.Item>
-                <Descriptions.Item label="最大亏损">
-                  {formatPercent(pos.max_loss_pct ?? pos.margin_rate)}
-                </Descriptions.Item>
-                <Descriptions.Item label="计息规则">{pos.accrual_basis === 'one' ? '单含' : '双含'}</Descriptions.Item>
-                <Descriptions.Item label="计息结算 T+">{pos.accrual_settle_tplus ?? 0}</Descriptions.Item>
-                <Descriptions.Item label="年化后端返息">{formatPercent(pos.rebate_annual_pct ?? 0)}</Descriptions.Item>
-                <Descriptions.Item label="绝对后端返息">{formatPercent(pos.rebate_absolute_back_pct ?? 0)}</Descriptions.Item>
-                <Descriptions.Item label="绝对前端返息">{formatPercent(pos.rebate_absolute_front_pct ?? 0)}</Descriptions.Item>
-              </Descriptions>
-            )
-          })()}
-        </Card>
-      )}
-
-      {/* Chart + Events */}
-      <Row gutter={[16, 16]}>
-        <Col span={16}>
-          <Card title="价格走势" variant="borderless" className="content-card">
-            <PriceChart
-              code={pos.underlying_code}
-              knockInPrice={knockInPrice}
-              knockOutPrice={knockOutPrice}
-              initialPrice={pos.initial_price}
-            />
+      {(pos.status !== 'knocked_out' && pos.status !== 'matured') && (
+      <Row gutter={[16, 16]} align="stretch" style={{ marginBottom: 24 }}>
+        <Col span={8}>
+          <Card className="glass-card index-card" variant="borderless" style={{ height: '100%' }}>
+            <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 12, fontWeight: 600 }}>{pos.underlying || pos.underlying_code}</span>
+              <Button size="small" type="text" icon={<SyncOutlined />} onClick={handleFetchPrice} style={{ fontSize: 12, opacity: 0.5 }} />
+            </div>
+            {currentPrice != null ? (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12 }}>
+                  <div style={{ fontSize: 20, fontWeight: 700, color, letterSpacing: '-0.02em' }}>
+                    {currentPrice.toFixed(2)}
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: 11, opacity: 0.5 }}>期初</div>
+                    <div style={{ fontSize: 13, fontWeight: 500 }}>
+                      {pos.initial_price?.toFixed(2) ?? '—'}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                  <span style={{ fontSize: 11, opacity: 0.5 }}>最新涨跌幅</span>
+                  <span style={{
+                    fontSize: 12,
+                    fontWeight: 500,
+                    color,
+                    background: up ? 'rgba(239,68,68,0.07)' : 'rgba(34,197,94,0.07)',
+                    padding: '1px 5px',
+                    borderRadius: 3
+                  }}>
+                    {changePct != null ? `${changePct >= 0 ? '+' : ''}${changePct.toFixed(2)}%` : '—'}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <div style={{ fontSize: 12, opacity: 0.35, padding: '8px 0' }}>未录入</div>
+            )}
           </Card>
         </Col>
         <Col span={8}>
-          <Card title="事件记录" variant="borderless" className="content-card">
-            {events.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '40px 0', opacity: 0.35 }}>
-                暂无事件记录
+          <Card className="stat-card content-card" variant="borderless" style={{ height: '100%' }}>
+            <div style={{ fontSize: 13, opacity: 0.55, marginBottom: 10, fontWeight: 500 }}>最近敲出观察</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 8px' }}>
+              <div>
+                <div style={{ fontSize: 12, opacity: 0.5, marginBottom: 2 }}>观察日期</div>
+                <div style={{ fontWeight: 600, fontSize: 15 }}>
+                  {nearestKoDate ? formatDate(nearestKoDate) : '—'}
+                </div>
               </div>
-            ) : (
-              <Timeline
-                items={events.map((e) => {
-                  const info = EVENT_TYPE_MAP[e.event_type] || { label: e.event_type, color: 'blue' }
-                  return {
-                    color: info.color === 'orange' ? 'orange' : info.color === 'green' ? 'green' : 'blue',
-                    children: (
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <Tag color={info.color}>{info.label}</Tag>
-                          <span style={{ opacity: 0.45, fontSize: 12 }}>{formatDate(e.event_date)}</span>
-                        </div>
-                        <div style={{ marginTop: 4, fontSize: 13, opacity: 0.65 }}>{e.description}</div>
-                      </div>
-                    )
-                  }
-                })}
-              />
+              <div>
+                <div style={{ fontSize: 12, opacity: 0.5, marginBottom: 2 }}>剩余自然日</div>
+                <div style={{ fontWeight: 600, fontSize: 15 }}>
+                  {koRemainingDays != null ? `${koRemainingDays} 天` : '—'}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 12, opacity: 0.5, marginBottom: 2 }}>观察点位</div>
+                <div style={{ fontWeight: 600, fontSize: 15 }}>
+                  {nearestKoBarrierPrice != null ? nearestKoBarrierPrice.toFixed(2) : '—'}
+                  {nearestKoBarrier != null && (
+                    <span style={{ fontSize: 11, opacity: 0.4, marginLeft: 4 }}>{nearestKoBarrier}%</span>
+                  )}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 12, opacity: 0.5, marginBottom: 2 }}>
+                  {koGapPct == null ? '点位差距' : koGapPct < 0 ? '当前超出敲出障碍价格' : '当前低于敲出障碍价格'}
+                </div>
+                <div
+                  style={{
+                    fontWeight: 600,
+                    fontSize: 15,
+                    color: koGapPct == null ? undefined : koGapPct < 0 ? '#22c55e' : '#ef4444',
+                  }}
+                >
+                  {koGapPct != null ? `${Math.abs(koGapPct).toFixed(2)}%` : '—'}
+                </div>
+              </div>
+            </div>
+          </Card>
+        </Col>
+        <Col span={8}>
+          <Card className="stat-card content-card" variant="borderless" style={{ height: '100%' }}>
+            <div style={{ fontSize: 13, opacity: 0.55, marginBottom: 10, fontWeight: 500 }}>敲出收益估算</div>
+            <div style={{ fontSize: 24, fontWeight: 700 }}>
+              {koProfit != null
+                ? `¥${koProfit.net.toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
+                : '—'}
+            </div>
+            {koProfit != null && (
+              <div style={{ fontSize: 12, opacity: 0.6, marginTop: 10, lineHeight: 1.6 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>敲出票息</span>
+                  <span>+¥{koProfit.coupon.toLocaleString('zh-CN', { maximumFractionDigits: 0 })}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>返息</span>
+                  <span>
+                    +¥{koProfit.rebate.total.toLocaleString('zh-CN', { maximumFractionDigits: 0 })}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>交易费用</span>
+                  <span>
+                    -¥{koProfit.fees.total.toLocaleString('zh-CN', { maximumFractionDigits: 0 })}
+                  </span>
+                </div>
+                <div style={{ marginTop: 4, opacity: 0.7 }}>
+                  存续 {koProfit.holdingDays} 天 · 本金
+                  ¥{(pos.notional ?? 0).toLocaleString('zh-CN', { maximumFractionDigits: 0 })}
+                </div>
+              </div>
             )}
           </Card>
         </Col>
       </Row>
+      )}
 
-      {/* Price Modal */}
+      {(pos.status === 'knocked_out' || pos.status === 'matured') && (
+        <Card className="stat-card content-card" variant="borderless" style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 13, opacity: 0.55, marginBottom: 10, fontWeight: 500 }}>
+            {pos.status === 'knocked_out' ? '敲出了结' : '到期了结'}
+          </div>
+          <Row gutter={32}>
+            <Col>
+              <div style={{ fontSize: 12, opacity: 0.5, marginBottom: 2 }}>了结日期</div>
+              <div style={{ fontWeight: 600, fontSize: 15 }}>
+                {pos.termination_date ? formatDate(pos.termination_date) : '—'}
+              </div>
+            </Col>
+            <Col>
+              <div style={{ fontSize: 12, opacity: 0.5, marginBottom: 2 }}>了结收益</div>
+              <div style={{ fontWeight: 600, fontSize: 15 }}>
+                {pos.termination_payoff != null
+                  ? `¥${Number(pos.termination_payoff).toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
+                  : '—'}
+              </div>
+            </Col>
+          </Row>
+        </Card>
+      )}
+
+      {/* 结构信息（与录入版式一致，只读） */}
+      <PositionForm readOnly bare />
+
       <Modal
-        title="手动录入价格"
-        open={priceModalOpen}
-        onOk={handleManualPrice}
-        onCancel={() => setPriceModalOpen(false)}
+        title="标记为已敲入"
+        open={kiModalOpen}
+        onOk={handleKiConfirm}
+        onCancel={() => setKiModalOpen(false)}
         okText="确认"
         cancelText="取消"
+        destroyOnClose
       >
-        <Space direction="vertical" style={{ width: '100%' }} size="middle">
-          <div>
-            <div style={{ marginBottom: 8, fontWeight: 500 }}>日期</div>
-            <DatePicker value={manualDate} onChange={(v) => v && setManualDate(v)} style={{ width: '100%' }} />
-          </div>
-          <div>
-            <div style={{ marginBottom: 8, fontWeight: 500 }}>价格</div>
-            <InputNumber
-              value={manualPrice}
-              onChange={(v) => setManualPrice(v || 0)}
-              min={0}
-              step={0.01}
-              precision={2}
-              style={{ width: '100%' }}
-              placeholder={`敲入价: ${knockInPrice.toFixed(2)} / 敲出价: ${knockOutPrice.toFixed(2)}`}
-            />
-          </div>
-        </Space>
+        <div style={{ marginBottom: 8, opacity: 0.6 }}>请选择敲入日期：</div>
+        <DatePicker
+          value={kiDate}
+          onChange={(d) => setKiDate(d)}
+          style={{ width: '100%' }}
+          allowClear={false}
+        />
+      </Modal>
+
+      <Modal
+        title={endAction === 'knocked_out' ? '标记为已敲出' : '标记为已到期'}
+        open={endModalOpen}
+        onOk={handleEndConfirm}
+        onCancel={() => setEndModalOpen(false)}
+        okText="确认"
+        cancelText="取消"
+        destroyOnClose
+      >
+        <div style={{ marginBottom: 8, opacity: 0.6 }}>请选择了结日期：</div>
+        <DatePicker
+          value={endDate}
+          onChange={(d) => setEndDate(d)}
+          style={{ width: '100%', marginBottom: 16 }}
+          allowClear={false}
+        />
+        <div style={{ marginBottom: 8, opacity: 0.6 }}>收益结算（绝对金额）：</div>
+        <InputNumber
+          value={endPayoff}
+          onChange={(v) => setEndPayoff(v)}
+          style={{ width: '100%' }}
+          min={0}
+          precision={2}
+          step={1000}
+          formatter={(val) => `${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+          parser={(val) => (val ? Number(val.replace(/,/g, '')) : 0) as any}
+          addonAfter="元"
+        />
       </Modal>
     </div>
   )

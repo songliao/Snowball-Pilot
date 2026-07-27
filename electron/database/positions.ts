@@ -1,143 +1,128 @@
 import { ipcMain } from 'electron'
 import { queryAll, queryOne, execute, getLastInsertId } from './index'
+import {
+  COMMON_COLS,
+  colsForType,
+  tableForType,
+  colValue
+} from './schema'
+
+const COMMON_SELECT = COMMON_COLS.join(', ')
 
 export function registerPositionHandlers(): void {
-  // 获取所有持仓
+  // 列表：两张表 UNION，并带上 structure_type 字面量
   ipcMain.handle('positions:get-all', () => {
-    return queryAll('SELECT * FROM positions ORDER BY created_at DESC')
+    return queryAll(
+      `SELECT id, ${COMMON_SELECT}, created_at, 'snowball' as structure_type FROM snowball_positions
+       UNION ALL
+       SELECT id, ${COMMON_SELECT}, created_at, 'phoenix' as structure_type FROM phoenix_positions
+       ORDER BY created_at DESC`
+    )
   })
 
-  // 根据 ID 获取持仓
   ipcMain.handle('positions:get-by-id', (_event, id: number) => {
-    return queryOne('SELECT * FROM positions WHERE id = ?', [id])
+    const snow = queryOne(
+      `SELECT *, 'snowball' as structure_type FROM snowball_positions WHERE id = ?`,
+      [id]
+    )
+    if (snow) return snow
+    return queryOne(
+      `SELECT *, 'phoenix' as structure_type FROM phoenix_positions WHERE id = ?`,
+      [id]
+    )
   })
 
-  // 创建持仓
-  ipcMain.handle('positions:create', (_event, data) => {
-    execute(`
-      INSERT INTO positions (
-        product_name, broker, underlying, underlying_code, notional,
-        trade_date, effective_date, maturity_date, initial_price,
-        knock_in_pct, knock_out_pct, coupon_rate, margin_rate, observation_freq,
-        knock_in_observed, knock_out_observed, status, notes,
-        structure_type, coupon_barrier_pct, coupon_freq,
-        contract_no, interest_start_date,
-        knock_out_dates, knock_out_barriers, knock_out_coupons,
-        knock_out_enhance_participation, knock_in_observation,
-        knock_in_strike_pct, knock_in_participation, max_loss_pct,
-        rebate_annual_pct, rebate_absolute_back_pct, rebate_absolute_front_pct,
-        accrual_basis, accrual_settle_tplus, dividend_coupon,
-        abs_fee_pct, annual_fee_pct, income_dividend_pct,
-        dividend_observation_dates, dividend_rate_pct
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [
-      data.product_name,
-      data.broker || '',
-      data.underlying,
-      data.underlying_code || '',
-      data.notional,
-      '',
-      '',
-      '',
-      data.initial_price,
-      data.knock_in_pct,
-      data.knock_out_pct || 1.0,
-      data.coupon_rate,
-      data.margin_rate || 0,
-      data.observation_freq || 'monthly',
-      data.knock_in_observed || 0,
-      data.knock_out_observed || 0,
-      data.status || 'active',
-      data.notes || '',
-      data.structure_type || 'snowball',
-      data.coupon_barrier_pct || 0,
-      data.coupon_freq || '',
-      data.contract_no || '',
-      data.interest_start_date || '',
-      data.knock_out_dates || '',
-      data.knock_out_barriers || '',
-      data.knock_out_coupons || '',
-      data.knock_out_enhance_participation || 0,
-      data.knock_in_observation || 'daily',
-      data.knock_in_strike_pct || 100,
-      data.knock_in_participation || 100,
-      data.max_loss_pct || 0,
-      data.rebate_annual_pct || 0,
-      data.rebate_absolute_back_pct || 0,
-      data.rebate_absolute_front_pct || 0,
-      data.accrual_basis || 'both',
-      data.accrual_settle_tplus || 0,
-      data.dividend_coupon || 0,
-      data.abs_fee_pct || 0,
-      data.annual_fee_pct || 0,
-      data.income_dividend_pct || 0,
-      data.dividend_observation_dates || '',
-      data.dividend_rate_pct || 0
-    ])
+  ipcMain.handle('positions:create', (_event, data: Record<string, unknown>) => {
+    const table = tableForType(data.structure_type as string)
+    const cols = colsForType(data.structure_type as string)
+    const values = cols.map((c) => colValue(c, data))
+    const placeholders = cols.map(() => '?').join(', ')
+    execute(
+      `INSERT INTO ${table} (${cols.join(', ')}, created_at, updated_at)
+       VALUES (${placeholders}, datetime('now','localtime'), datetime('now','localtime'))`,
+      values
+    )
     return getLastInsertId()
   })
 
-  // 更新持仓
-  ipcMain.handle('positions:update', (_event, id: number, data) => {
-    const fields: string[] = []
-    const values: unknown[] = []
-
-    const allowedFields = [
-      'product_name', 'broker', 'underlying', 'underlying_code', 'notional',
-      'initial_price',
-      'knock_in_pct', 'knock_out_pct', 'coupon_rate', 'margin_rate', 'observation_freq',
-      'knock_in_observed', 'knock_out_observed', 'status', 'notes',
-      'structure_type', 'coupon_barrier_pct', 'coupon_freq',
-      'contract_no', 'interest_start_date',
-      'knock_out_dates', 'knock_out_barriers', 'knock_out_coupons',
-      'knock_out_enhance_participation', 'knock_in_observation',
-      'knock_in_strike_pct', 'knock_in_participation', 'max_loss_pct',
-      'rebate_annual_pct', 'rebate_absolute_back_pct', 'rebate_absolute_front_pct',
-      'accrual_basis', 'accrual_settle_tplus', 'dividend_coupon',
-      'abs_fee_pct', 'annual_fee_pct', 'income_dividend_pct',
-      'dividend_observation_dates', 'dividend_rate_pct'
-    ]
-
-    for (const field of allowedFields) {
-      if (field in data && data[field] !== undefined) {
-        fields.push(`${field} = ?`)
-        values.push(data[field])
+  ipcMain.handle(
+    'positions:update',
+    (_event, id: number, data: Record<string, unknown>) => {
+      const table = tableForType(data.structure_type as string)
+      const cols = colsForType(data.structure_type as string)
+      const fields: string[] = []
+      const values: unknown[] = []
+      for (const col of cols) {
+        if (col in data && data[col] !== undefined) {
+          fields.push(`${col} = ?`)
+          values.push(colValue(col, data))
+        }
       }
+      if (fields.length === 0) return false
+      fields.push("updated_at = datetime('now','localtime')")
+      values.push(id)
+      execute(`UPDATE ${table} SET ${fields.join(', ')} WHERE id = ?`, values)
+      return true
     }
+  )
 
-    if (fields.length === 0) return false
-
-    fields.push("updated_at = datetime('now', 'localtime')")
-    values.push(id)
-    execute(`UPDATE positions SET ${fields.join(', ')} WHERE id = ?`, values)
-    return true
-  })
-
-  // 删除持仓
-  ipcMain.handle('positions:delete', (_event, id: number) => {
+  ipcMain.handle('positions:delete', (_event, id: number, structureType: string) => {
+    const table = tableForType(structureType)
     execute('DELETE FROM events WHERE position_id = ?', [id])
-    execute('DELETE FROM positions WHERE id = ?', [id])
+    execute(`DELETE FROM ${table} WHERE id = ?`, [id])
     return true
   })
 
-  // 更新状态
-  ipcMain.handle('positions:update-status', (_event, id: number, status: string) => {
-    if (status === 'knocked_in') {
-      execute(
-        "UPDATE positions SET status = ?, knock_in_observed = 1, updated_at = datetime('now', 'localtime') WHERE id = ?",
-        [status, id]
-      )
-    } else if (status === 'knocked_out') {
-      execute(
-        "UPDATE positions SET status = ?, knock_out_observed = 1, updated_at = datetime('now', 'localtime') WHERE id = ?",
-        [status, id]
-      )
-    } else {
-      execute(
-        "UPDATE positions SET status = ?, updated_at = datetime('now', 'localtime') WHERE id = ?",
-        [status, id]
-      )
+  ipcMain.handle(
+    'positions:update-status',
+    (
+      _event,
+      id: number,
+      status: string,
+      structureType: string,
+      isKi?: boolean,
+      knockInDate?: string,
+      terminationDate?: string,
+      payoff?: number
+    ) => {
+      const table = tableForType(structureType)
+      const fields: string[] = ['status = ?']
+      const values: unknown[] = [status]
+
+      if (isKi !== undefined) {
+        // 敲入状态变更：标记或撤销敲入
+        fields.push('is_ki = ?')
+        values.push(isKi ? 1 : 0)
+        if (isKi) {
+          // 标记敲入：记录选定（或留空回退到当前）敲入日期
+          const kiValue =
+            knockInDate && /^\d{4}-\d{2}-\d{2}$/.test(knockInDate) ? knockInDate : null
+          fields.push('knock_in_date = ?')
+          values.push(kiValue)
+        } else {
+          // 撤销敲入：清空敲入日期
+          fields.push('knock_in_date = NULL')
+        }
+      }
+
+      if (terminationDate !== undefined) {
+        // 了结（敲出/到期）：记录了结日期
+        const tValue =
+          terminationDate && /^\d{4}-\d{2}-\d{2}$/.test(terminationDate) ? terminationDate : null
+        fields.push('termination_date = ?')
+        values.push(tValue)
+      }
+
+      if (payoff !== undefined) {
+        // 了结收益（绝对金额）；传 null 时清空为 NULL
+        fields.push('termination_payoff = ?')
+        values.push(payoff == null ? null : Number(payoff) || 0)
+      }
+
+      fields.push("updated_at = datetime('now','localtime')")
+      values.push(id)
+      execute(`UPDATE ${table} SET ${fields.join(', ')} WHERE id = ?`, values)
+      return true
     }
-    return true
-  })
+  )
 }

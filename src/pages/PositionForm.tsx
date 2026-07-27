@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, type ReactNode } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import {
   Card, Form, Input, InputNumber, DatePicker, Select, Button, Row, Col,
-  Space, Typography, message, Tag, Tooltip
+  Space, Typography, message, Tag, Tooltip, Checkbox
 } from 'antd'
 import {
   InfoCircleOutlined,
@@ -64,13 +64,26 @@ const parseNumberList = (input?: string): number[] => {
     .filter((n) => !Number.isNaN(n))
 }
 
-export default function PositionForm() {
+const parseStringList = (input?: string): string[] => {
+  if (!input) return []
+  return input
+    .split(/[\s,，、；;]+/)
+    .map((t) => t.trim())
+    .filter(Boolean)
+}
+
+export default function PositionForm({ readOnly = false, bare = false }: { readOnly?: boolean; bare?: boolean }) {
   const { id } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
   const [form] = Form.useForm()
   const [saving, setSaving] = useState(false)
   const [isPhoenix, setIsPhoenix] = useState(false)
+  const isEdit = !!id
+  const koDatesCount = parseDateList(Form.useWatch('knock_out_dates', form)).length
+  const koBarriersCount = parseNumberList(Form.useWatch('knock_out_barriers', form)).length
+  const koCouponsCount = parseNumberList(Form.useWatch('knock_out_coupons', form)).length
+  const couponDatesCount = parseDateList(Form.useWatch('coupon_dates', form)).length
   const { create, update } = usePositionStore()
   const [underlyingOptions, setUnderlyingOptions] = useState<{ label: string; value: string }[]>([])
 
@@ -111,23 +124,26 @@ export default function PositionForm() {
         return
       }
       setIsPhoenix(current.structure_type === 'phoenix')
+      const isPhx = current.structure_type === 'phoenix'
       form.setFieldsValue({
         ...current,
         notional: current.notional,
         initial_price: current.initial_price,
-        knock_in_pct: current.knock_in_pct * 100,
-        knock_out_pct: current.knock_out_pct * 100,
-        coupon_rate: current.coupon_rate * 100,
-        margin_rate: current.margin_rate * 100,
-        coupon_barrier_pct: (current.coupon_barrier_pct ?? 0) * 100,
+        trade_start_date: current.trade_start_date || current.interest_start_date
+          ? dayjs(current.trade_start_date || current.interest_start_date)
+          : null,
+        knock_in_barrier: ((current.knock_in_barrier ?? current.knock_in_pct) ?? 0) * 100,
+        coupon_rate: (current.coupon_rate ?? 0) * 100,
+        margin_ratio: ((current.margin_ratio ?? current.margin_rate) ?? 0) * 100,
+        coupon_barrier: (current.coupon_barrier ?? 0) * 100,
         // 雪球簿记字段
         knock_out_barriers: parseJsonArray<number>(current.knock_out_barriers).join('\n'),
         knock_out_coupons: parseJsonArray<number>(current.knock_out_coupons).join('\n'),
         knock_out_dates: parseJsonArray<string>(current.knock_out_dates).join('\n'),
         knock_out_enhance_participation: (current.knock_out_enhance_participation ?? 0) * 100,
-        dividend_coupon: (current.dividend_coupon ?? 0) * 100,
+        maturity_coupon: ((isPhx ? current.dividend_coupon : current.maturity_coupon) ?? 0) * 100,
         knock_in_observation: current.knock_in_observation || 'daily',
-        knock_in_strike_pct: (current.knock_in_strike_pct ?? 100) * 100,
+        knock_in_strike: ((current.knock_in_strike ?? current.knock_in_strike_pct) ?? 100) * 100,
         knock_in_participation: (current.knock_in_participation ?? 100) * 100,
         max_loss_pct: (current.max_loss_pct ?? 0) * 100,
         rebate_annual_pct: (current.rebate_annual_pct ?? 0) * 100,
@@ -138,9 +154,13 @@ export default function PositionForm() {
         abs_fee_pct: (current.abs_fee_pct ?? 0) * 100,
         annual_fee_pct: (current.annual_fee_pct ?? 0) * 100,
         income_dividend_pct: (current.income_dividend_pct ?? 0) * 100,
+        termination_date: current.termination_date ? dayjs(current.termination_date) : null,
+        termination_payoff: current.termination_payoff ?? 0,
         // 凤凰簿记字段
-        dividend_observation_dates: parseJsonArray<string>(current.dividend_observation_dates).join('\n'),
-        dividend_rate_pct: (current.dividend_rate_pct ?? 0) * 100
+        coupon_dates: parseJsonArray<string>(current.coupon_dates).join('\n'),
+        coupon_received: parseJsonArray<string>(current.coupon_received).join('\n'),
+        coupon_payment_dates: parseJsonArray<string>(current.coupon_payment_dates).join('\n'),
+        is_ki: !!current.is_ki
       })
     }
     load()
@@ -152,38 +172,33 @@ export default function PositionForm() {
       if (isPhoenix) {
         const dates = parseDateList(values.knock_out_dates)
         const barriers = parseNumberList(values.knock_out_barriers)
-        const dividendDates = parseDateList(values.dividend_observation_dates)
+        const dividendDates = parseDateList(values.coupon_dates)
         if (dates.length !== barriers.length) {
           message.error('敲出观察日、敲出障碍价格的数量必须一致')
           return
         }
-        const margin = Number(values.margin_rate || 0)
+        const margin = Number(values.margin_ratio || 0)
         const v = {
           product_name: values.product_name,
           broker: values.broker,
           underlying_code: values.underlying_code,
           notional: Number(values.notional),
           initial_price: Number(values.initial_price || 0),
-          knock_in_pct: Number(values.knock_in_pct || 0) / 100,
-          knock_out_pct: barriers.length ? Number(barriers[0]) / 100 : 1.0,
+          trade_start_date: values.trade_start_date ? values.trade_start_date.format('YYYY-MM-DD') : '',
+          knock_in_barrier: Number(values.knock_in_barrier || 0) / 100,
           coupon_rate: Number(values.coupon_rate || 0) / 100,
-          margin_rate: margin / 100,
-          observation_freq: 'monthly',
-          knock_in_observed: 0,
-          knock_out_observed: 0,
+          margin_ratio: margin / 100,
           status: 'active',
           notes: values.notes || '',
           structure_type: 'phoenix',
-          coupon_barrier_pct: Number(values.coupon_barrier_pct || 0) / 100,
-          coupon_freq: '',
+          coupon_barrier: Number(values.coupon_barrier || 0) / 100,
           contract_no: values.contract_no || '',
           knock_out_dates: JSON.stringify(dates),
           knock_out_barriers: JSON.stringify(barriers),
           knock_out_coupons: '',
           knock_out_enhance_participation: 0,
-          dividend_coupon: Number(values.dividend_coupon || 0) / 100,
           knock_in_observation: values.knock_in_observation || 'daily',
-          knock_in_strike_pct: Number(values.knock_in_strike_pct ?? 100) / 100,
+          knock_in_strike: Number(values.knock_in_strike ?? 100) / 100,
           knock_in_participation: Number(values.knock_in_participation ?? 100) / 100,
           max_loss_pct:
             values.max_loss_pct != null && values.max_loss_pct !== ''
@@ -197,8 +212,12 @@ export default function PositionForm() {
           abs_fee_pct: Number(values.abs_fee_pct || 0) / 100,
           annual_fee_pct: Number(values.annual_fee_pct || 0) / 100,
           income_dividend_pct: Number(values.income_dividend_pct || 0) / 100,
-          dividend_observation_dates: JSON.stringify(dividendDates),
-          dividend_rate_pct: Number(values.dividend_rate_pct || 0) / 100
+          coupon_dates: JSON.stringify(dividendDates),
+          coupon_received: JSON.stringify(parseStringList(values.coupon_received)),
+          coupon_payment_dates: JSON.stringify(parseDateList(values.coupon_payment_dates)),
+          is_ki: values.is_ki ? 1 : 0,
+          termination_date: values.termination_date ? values.termination_date.format('YYYY-MM-DD') : '',
+          termination_payoff: values.termination_payoff != null && values.termination_payoff !== '' ? Number(values.termination_payoff) : null
         }
         if (id) await update(Number(id), v)
         else await create(v)
@@ -210,33 +229,29 @@ export default function PositionForm() {
           message.error('敲出观察日、敲出障碍价格、敲出票息的数量必须一致')
           return
         }
-        const margin = Number(values.margin_rate || 0)
+        const margin = Number(values.margin_ratio || 0)
         const v = {
           product_name: values.product_name,
           broker: values.broker,
           underlying_code: values.underlying_code,
           notional: Number(values.notional),
           initial_price: Number(values.initial_price || 0),
-          knock_in_pct: Number(values.knock_in_pct || 0) / 100,
-          knock_out_pct: barriers.length ? Number(barriers[0]) / 100 : 1.0,
-          coupon_rate: coupons.length ? Number(coupons[0]) / 100 : 0,
-          margin_rate: margin / 100,
-          observation_freq: 'monthly',
-          knock_in_observed: 0,
-          knock_out_observed: 0,
+          trade_start_date: values.trade_start_date ? values.trade_start_date.format('YYYY-MM-DD') : '',
+          knock_in_barrier: Number(values.knock_in_barrier || 0) / 100,
+          margin_ratio: margin / 100,
           status: 'active',
           notes: values.notes || '',
           structure_type: 'snowball',
-          coupon_barrier_pct: 0,
-          coupon_freq: '',
+          coupon_barrier: 0,
+          coupon_dates: '',
           contract_no: values.contract_no || '',
           knock_out_barriers: JSON.stringify(barriers),
           knock_out_coupons: JSON.stringify(coupons),
           knock_out_dates: JSON.stringify(dates),
           knock_out_enhance_participation: Number(values.knock_out_enhance_participation || 0) / 100,
-          dividend_coupon: Number(values.dividend_coupon || 0) / 100,
+          maturity_coupon: Number(values.maturity_coupon || 0) / 100,
           knock_in_observation: values.knock_in_observation || 'daily',
-          knock_in_strike_pct: Number(values.knock_in_strike_pct ?? 100) / 100,
+          knock_in_strike: Number(values.knock_in_strike ?? 100) / 100,
           knock_in_participation: Number(values.knock_in_participation ?? 100) / 100,
           max_loss_pct:
             values.max_loss_pct != null && values.max_loss_pct !== ''
@@ -249,7 +264,10 @@ export default function PositionForm() {
           accrual_settle_tplus: Number(values.accrual_settle_tplus || 0),
           abs_fee_pct: Number(values.abs_fee_pct || 0) / 100,
           annual_fee_pct: Number(values.annual_fee_pct || 0) / 100,
-          income_dividend_pct: Number(values.income_dividend_pct || 0) / 100
+          income_dividend_pct: Number(values.income_dividend_pct || 0) / 100,
+          termination_date: values.termination_date ? values.termination_date.format('YYYY-MM-DD') : '',
+          termination_payoff: values.termination_payoff != null && values.termination_payoff !== '' ? Number(values.termination_payoff) : null,
+          is_ki: values.is_ki ? 1 : 0
         }
         if (id) await update(Number(id), v)
         else await create(v)
@@ -265,29 +283,14 @@ export default function PositionForm() {
 
   const label = isPhoenix ? '凤凰' : '雪球'
 
-  return (
-    <div className="page-container">
-      <div className="page-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: -10 }}>
-          <Title level={5} style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>
-            {id ? '编辑持仓' : '新增持仓'}
-          </Title>
-          <Tag className={`structure-tag ${isPhoenix ? 'structure-tag--phoenix' : 'structure-tag--snowball'}`}>{label}</Tag>
-        </div>
-        <Space style={{ marginTop: 18 }}>
-          <Button style={{ width: 96, height: 31 }} onClick={() => navigate(-1)}>取消</Button>
-          <Button type="primary" style={{ width: 96, height: 31 }} loading={saving} onClick={() => form.submit()}>
-            保存
-          </Button>
-        </Space>
-      </div>
-
-      <Card className="bookkeeping-card">
-        <Form
-          form={form}
-          className="bookkeeping-form"
-          layout="vertical"
-          requiredMark={(label, { required }) =>
+  const formBody = (
+    <Card className="bookkeeping-card">
+      <Form
+        form={form}
+        className="bookkeeping-form"
+        layout="vertical"
+        disabled={readOnly}
+        requiredMark={(label, { required }) =>
             required ? (
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                 {label}
@@ -300,18 +303,16 @@ export default function PositionForm() {
             )
           }
           initialValues={{
-            observation_freq: 'monthly',
             underlying_code: '000905.SH',
             coupon_rate: 15,
-            knock_out_pct: 103,
-            margin_rate: 0,
+            margin_ratio: 0,
             // 雪球默认
-            knock_in_pct: 75,
+            knock_in_barrier: 75,
             knock_in_observation: 'daily',
-            knock_in_strike_pct: 100,
+            knock_in_strike: 100,
             knock_in_participation: 100,
             knock_out_enhance_participation: 0,
-            dividend_coupon: 0,
+            maturity_coupon: 0,
             accrual_basis: 'both',
             accrual_settle_tplus: 0,
             rebate_annual_pct: 0,
@@ -320,10 +321,9 @@ export default function PositionForm() {
             abs_fee_pct: 0,
             annual_fee_pct: 0,
             income_dividend_pct: 0,
+            termination_payoff: 0,
             // 凤凰默认
-            coupon_barrier_pct: 80,
-            coupon_freq: 'monthly',
-            dividend_rate_pct: 0
+            coupon_barrier: 80
           }}
           onFinish={handleSubmit}
         >
@@ -369,7 +369,7 @@ export default function PositionForm() {
               </Form.Item>
             </Col>
             <Col xs={24} sm={12} md={8}>
-              <Form.Item label="起息日" name="interest_start_date" rules={[{ required: true, message: '请选择起息日' }]}>
+              <Form.Item label="起息日" name="trade_start_date" rules={[{ required: true, message: '请选择起息日' }]}>
                 <DatePicker style={{ width: '100%' }} />
               </Form.Item>
             </Col>
@@ -385,7 +385,7 @@ export default function PositionForm() {
           <Row gutter={16}>
             <Col xs={24}>
               <Form.Item
-                label="敲出观察日"
+                label={<span>敲出观察日<Tag color="blue" style={{ marginLeft: 6 }}>{koDatesCount} 期</Tag></span>}
                 name="knock_out_dates"
                 tooltip="可一次性输入多个日期，用空格、逗号或换行分隔"
                 rules={[{ required: true, message: '请输入敲出观察日' }]}
@@ -399,7 +399,7 @@ export default function PositionForm() {
             </Col>
             <Col xs={24}>
               <Form.Item
-                label="敲出障碍价格"
+                label={<span>敲出障碍价格<Tag color="blue" style={{ marginLeft: 6 }}>{koBarriersCount} 期</Tag></span>}
                 name="knock_out_barriers"
                 tooltip="可一次性输入多个数值，用空格、逗号或换行分隔；可带 % 或不带"
                 rules={[{ required: true, message: '请输入敲出障碍价格' }]}
@@ -414,7 +414,7 @@ export default function PositionForm() {
             {!isPhoenix && (
               <Col xs={24}>
                 <Form.Item
-                  label="敲出票息"
+                  label={<span>敲出票息<Tag color="blue" style={{ marginLeft: 6 }}>{koCouponsCount} 期</Tag></span>}
                   name="knock_out_coupons"
                   tooltip="可一次性输入多个数值，用空格、逗号或换行分隔；可带 % 或不带"
                   rules={[{ required: true, message: '请输入敲出票息' }]}
@@ -436,7 +436,7 @@ export default function PositionForm() {
             )}
             {!isPhoenix && (
               <Col xs={24} sm={12} md={8}>
-                <Form.Item label="红利票息" name="dividend_coupon" rules={[{ required: true, message: '请输入红利票息' }]}>
+                <Form.Item label="红利票息" name="maturity_coupon" rules={[{ required: true, message: '请输入红利票息' }]}>
                   <InputNumber style={{ width: '100%' }} min={0} step={0.5} addonAfter="%" />
                 </Form.Item>
               </Col>
@@ -449,8 +449,8 @@ export default function PositionForm() {
               <Row gutter={16}>
                 <Col xs={24}>
                   <Form.Item
-                    label="派息观察日"
-                    name="dividend_observation_dates"
+                    label={<span>派息观察日<Tag color="blue" style={{ marginLeft: 6 }}>{couponDatesCount} 期</Tag></span>}
+                    name="coupon_dates"
                     tooltip="可一次性输入多个日期，用空格、逗号或换行分隔"
                     rules={[{ required: true, message: '请输入派息观察日' }]}
                   >
@@ -464,7 +464,7 @@ export default function PositionForm() {
                 <Col xs={24} sm={12} md={8}>
                   <Form.Item
                     label="派息障碍价格"
-                    name="coupon_barrier_pct"
+                    name="coupon_barrier"
                     tooltip="标的在派息观察日收盘价高于该比例时支付票息"
                     rules={[{ required: true, message: '请输入派息障碍价格' }]}
                   >
@@ -474,13 +474,35 @@ export default function PositionForm() {
                 <Col xs={24} sm={12} md={8}>
                   <Form.Item
                     label="派息率"
-                    name="dividend_rate_pct"
-                    tooltip="按名义本金的绝对百分比"
+                    name="coupon_rate"
+                    tooltip="按名义本金的绝对百分比计算"
                     rules={[{ required: true, message: '请输入派息率' }]}
                   >
                     <InputNumber style={{ width: '100%' }} min={0} step={0.5} addonAfter="%" />
                   </Form.Item>
                 </Col>
+                {isEdit && (
+                <Col xs={24}>
+                  <Form.Item
+                    label="派息支付日"
+                    name="coupon_payment_dates"
+                    tooltip="可一次性输入多个日期，用空格、逗号或换行分隔"
+                  >
+                    <Input.TextArea rows={2} autoSize={{ minRows: 2, maxRows: 5 }} placeholder="如：2024-03-20 2024-04-20" />
+                  </Form.Item>
+                </Col>
+                )}
+                {isEdit && (
+                <Col xs={24}>
+                  <Form.Item
+                    label="已派息记录"
+                    name="coupon_received"
+                    tooltip="已实际支付的派息记录（数组，用空格、逗号或换行分隔）"
+                  >
+                    <Input.TextArea rows={2} autoSize={{ minRows: 2, maxRows: 5 }} placeholder="如：2024-03-20 15%、2024-04-20 15%" />
+                  </Form.Item>
+                </Col>
+                )}
               </Row>
             </>
           )}
@@ -488,7 +510,7 @@ export default function PositionForm() {
               <SectionHeader icon={<FallOutlined />}>敲入参数</SectionHeader>
               <Row gutter={16}>
                 <Col xs={24} sm={12} md={8}>
-              <Form.Item label="敲入障碍价格" name="knock_in_pct" rules={[{ required: true, message: '请输入敲入障碍价格' }]}>
+              <Form.Item label="敲入障碍价格" name="knock_in_barrier" rules={[{ required: true, message: '请输入敲入障碍价格' }]}>
                 <InputNumber style={{ width: '100%' }} min={0} step={0.5} addonAfter="%" />
               </Form.Item>
                 </Col>
@@ -503,7 +525,7 @@ export default function PositionForm() {
               </Form.Item>
                 </Col>
                 <Col xs={24} sm={12} md={8}>
-              <Form.Item label="敲入执行价格" name="knock_in_strike_pct" rules={[{ required: true, message: '请输入敲入执行价格' }]}>
+              <Form.Item label="敲入执行价格" name="knock_in_strike" rules={[{ required: true, message: '请输入敲入执行价格' }]}>
                 <InputNumber style={{ width: '100%' }} min={0} step={0.5} addonAfter="%" />
               </Form.Item>
                 </Col>
@@ -512,12 +534,19 @@ export default function PositionForm() {
                 <InputNumber style={{ width: '100%' }} min={0} step={0.5} addonAfter="%" />
               </Form.Item>
                 </Col>
+                {isEdit && !bare && (
+                <Col xs={24} sm={12} md={8}>
+                  <Form.Item name="is_ki" valuePropName="checked">
+                    <Checkbox>已敲入（KI）</Checkbox>
+                  </Form.Item>
+                </Col>
+                )}
               </Row>
 
               <SectionHeader icon={<SafetyCertificateOutlined />}>保证金与最大亏损</SectionHeader>
               <Row gutter={16}>
                 <Col xs={24} sm={12} md={8}>
-              <Form.Item label="保证金比例" name="margin_rate" rules={[{ required: true, message: '请输入保证金比例' }]}>
+              <Form.Item label="保证金比例" name="margin_ratio" rules={[{ required: true, message: '请输入保证金比例' }]}>
                 <InputNumber style={{ width: '100%' }} min={0} step={1} addonAfter="%" />
               </Form.Item>
                 </Col>
@@ -600,6 +629,28 @@ export default function PositionForm() {
                 </Col>
               </Row>
 
+              {isEdit && !bare && (
+                <>
+                  <SectionHeader icon={<CalculatorOutlined />}>终止条款</SectionHeader>
+                  <Row gutter={16}>
+                    <Col xs={24} sm={12} md={8}>
+                      <Form.Item label="终止日期" name="termination_date">
+                        <DatePicker style={{ width: '100%' }} />
+                      </Form.Item>
+                    </Col>
+                    <Col xs={24} sm={12} md={8}>
+                      <Form.Item
+                        label="了结收益"
+                        name="termination_payoff"
+                        tooltip="到期或提前终止时的了结收益（绝对金额），存续中可留空"
+                      >
+                        <InputNumber style={{ width: '100%' }} min={0} precision={2} step={1000} addonAfter="元" />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+                </>
+              )}
+
           {/* 备注 */}
           <SectionHeader icon={<EditOutlined />}>备注</SectionHeader>
           <Form.Item name="notes">
@@ -607,6 +658,35 @@ export default function PositionForm() {
           </Form.Item>
         </Form>
       </Card>
+  )
+
+  if (bare) return formBody
+
+  return (
+    <div className="page-container">
+      <div className="page-header">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: -10 }}>
+          <Title level={5} style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>
+            {id ? '编辑持仓' : '新增持仓'}
+          </Title>
+          <Tag className={`structure-tag ${isPhoenix ? 'structure-tag--phoenix' : 'structure-tag--snowball'}`}>{label}</Tag>
+        </div>
+        <Space style={{ marginTop: 18 }}>
+          {readOnly ? (
+            <Button type="primary" style={{ width: 96, height: 31 }} onClick={() => navigate(`/positions/${id}/edit`)}>
+              编辑
+            </Button>
+          ) : (
+            <>
+              <Button style={{ width: 96, height: 31 }} onClick={() => navigate(-1)}>取消</Button>
+              <Button type="primary" style={{ width: 96, height: 31 }} loading={saving} onClick={() => form.submit()}>
+                保存
+              </Button>
+            </>
+          )}
+        </Space>
+      </div>
+      {formBody}
     </div>
   )
 }

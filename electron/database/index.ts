@@ -2,6 +2,7 @@ import initSqlJs, { Database as SqlJsDatabase } from 'sql.js'
 import { app } from 'electron'
 import { join } from 'path'
 import { readFileSync, writeFileSync, existsSync } from 'fs'
+import { SNOWBALL_TABLE, PHOENIX_TABLE, SNOWBALL_COLS, PHOENIX_COLS } from './schema'
 
 let db: SqlJsDatabase | null = null
 let dbPath: string = ''
@@ -32,31 +33,9 @@ export async function initDatabase(): Promise<void> {
     db = new SQL.Database()
   }
 
-  // 创建表
-  db.run(`
-    CREATE TABLE IF NOT EXISTS positions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      product_name TEXT NOT NULL,
-      broker TEXT DEFAULT '',
-      underlying TEXT NOT NULL,
-      underlying_code TEXT DEFAULT '',
-      notional REAL NOT NULL,
-      trade_date TEXT NOT NULL,
-      effective_date TEXT NOT NULL,
-      maturity_date TEXT NOT NULL,
-      initial_price REAL NOT NULL,
-      knock_in_pct REAL NOT NULL,
-      knock_out_pct REAL NOT NULL DEFAULT 1.0,
-      coupon_rate REAL NOT NULL,
-      observation_freq TEXT DEFAULT 'monthly',
-      knock_in_observed INTEGER DEFAULT 0,
-      knock_out_observed INTEGER DEFAULT 0,
-      status TEXT DEFAULT 'active',
-      notes TEXT DEFAULT '',
-      created_at TEXT DEFAULT (datetime('now', 'localtime')),
-      updated_at TEXT DEFAULT (datetime('now', 'localtime'))
-    );
-  `)
+  // 创建表（雪球 / 凤凰 分表，列定义与 schema.ts 保持一致）
+  db.run(buildCreateSql(SNOWBALL_TABLE, SNOWBALL_COLS))
+  db.run(buildCreateSql(PHOENIX_TABLE, PHOENIX_COLS))
 
   db.run(`
     CREATE TABLE IF NOT EXISTS price_history (
@@ -76,8 +55,8 @@ export async function initDatabase(): Promise<void> {
       event_type TEXT NOT NULL,
       event_date TEXT NOT NULL,
       description TEXT DEFAULT '',
-      created_at TEXT DEFAULT (datetime('now', 'localtime')),
-      FOREIGN KEY (position_id) REFERENCES positions(id) ON DELETE CASCADE
+      structure_type TEXT DEFAULT 'snowball',
+      created_at TEXT DEFAULT (datetime('now', 'localtime'))
     );
   `)
 
@@ -89,8 +68,20 @@ export async function initDatabase(): Promise<void> {
   `)
 
   db.run(`CREATE INDEX IF NOT EXISTS idx_price_history_code ON price_history(underlying_code, date);`)
-  db.run(`CREATE INDEX IF NOT EXISTS idx_events_position ON events(position_id);`)
-  db.run(`CREATE INDEX IF NOT EXISTS idx_positions_status ON positions(status);`)
+  db.run(`CREATE INDEX IF NOT EXISTS idx_events_position ON events(position_id, structure_type);`)
+  db.run(`CREATE INDEX IF NOT EXISTS idx_snowball_status ON snowball_positions(status);`)
+  db.run(`CREATE INDEX IF NOT EXISTS idx_phoenix_status ON phoenix_positions(status);`)
+
+  // 旧 positions 表迁移到分表（仅首次，迁移后删除旧表）
+  migrateFromLegacyPositions()
+  // 雪球表字段演进迁移：重命名 / 删除 / 新增（仅对旧库生效）
+  migrateSnowballColumns()
+  // 凤凰表字段演进迁移（仅对旧库生效）
+  migratePhoenixColumns()
+  // events 兼容旧数据：补齐 structure_type 列
+  try {
+    db.run(`ALTER TABLE events ADD COLUMN structure_type TEXT DEFAULT 'snowball';`)
+  } catch { /* 已存在则忽略 */ }
 
   // 自选标的（勾选后显示在总览页面的行情卡片）
   db.run(`
@@ -99,54 +90,6 @@ export async function initDatabase(): Promise<void> {
       sort_order INTEGER DEFAULT 0
     );
   `)
-
-  // 迁移：添加 margin_rate 字段
-  try {
-    db.run(`ALTER TABLE positions ADD COLUMN margin_rate REAL DEFAULT 0;`)
-  } catch { /* 字段已存在则忽略 */ }
-
-  // 迁移：结构类型（snowball 雪球 / phoenix 凤凰）
-  try {
-    db.run(`ALTER TABLE positions ADD COLUMN structure_type TEXT DEFAULT 'snowball';`)
-  } catch { /* 字段已存在则忽略 */ }
-
-  // 迁移：凤凰类字段（派息障碍比例、派息观察频率）
-  try {
-    db.run(`ALTER TABLE positions ADD COLUMN coupon_barrier_pct REAL DEFAULT 0;`)
-  } catch { /* 字段已存在则忽略 */ }
-  try {
-    db.run(`ALTER TABLE positions ADD COLUMN coupon_freq TEXT DEFAULT '';`)
-  } catch { /* 字段已存在则忽略 */ }
-
-  // 迁移：雪球簿记字段
-  const snowballColumns = [
-    `contract_no TEXT DEFAULT ''`,                 // 合约编号
-    `interest_start_date TEXT DEFAULT ''`,          // 起息日
-    `knock_out_dates TEXT DEFAULT ''`,              // 敲出观察日（日期序列，JSON）
-    `knock_out_barriers TEXT DEFAULT ''`,           // 敲出障碍价格（百分比序列，JSON）
-    `knock_out_coupons TEXT DEFAULT ''`,            // 敲出票息（百分比序列，JSON）
-    `knock_out_enhance_participation REAL DEFAULT 0`, // 敲出增强参与率（百分比，默认0）
-    `dividend_coupon REAL DEFAULT 0`,               // 红利票息（百分比，默认0）
-    `knock_in_observation TEXT DEFAULT 'daily'`,    // 敲入观察方式（daily 每日 / maturity 到期）
-    `knock_in_strike_pct REAL DEFAULT 100`,         // 敲入执行价格（百分比，默认100）
-    `knock_in_participation REAL DEFAULT 100`,      // 敲入参与率（百分比，默认100）
-    `max_loss_pct REAL DEFAULT 0`,                  // 最大亏损（百分比，默认与保证金比例一致）
-    `rebate_annual_pct REAL DEFAULT 0`,             // 年化后端返息（百分比，默认0）
-    `rebate_absolute_back_pct REAL DEFAULT 0`,      // 绝对后端返息（百分比，默认0）
-    `rebate_absolute_front_pct REAL DEFAULT 0`,     // 绝对前端返息（百分比，默认0）
-    `accrual_basis TEXT DEFAULT 'both'`,            // 计息规则（both 双含 / one 单含，默认双含）
-    `accrual_settle_tplus INTEGER DEFAULT 0`,        // 计息结算T+（整数，默认0）
-    `abs_fee_pct REAL DEFAULT 0`,                    // 绝对费用（按名义本金的百分比）
-    `annual_fee_pct REAL DEFAULT 0`,                 // 年化费用（按名义本金百分比年化）
-    `income_dividend_pct REAL DEFAULT 0`,            // 收益分红（按票息的百分比）
-    `dividend_observation_dates TEXT DEFAULT ''`,    // 派息观察日（日期序列，JSON）
-    `dividend_rate_pct REAL DEFAULT 0`               // 派息率（按名义本金绝对，百分比）
-  ]
-  for (const col of snowballColumns) {
-    try {
-      db.run(`ALTER TABLE positions ADD COLUMN ${col};`)
-    } catch { /* 字段已存在则忽略 */ }
-  }
 
   // 迁移：price_history 增加 开/高/低/成交量 字段（用于蜡烛图展示真实 K 线）
   for (const col of ['open REAL', 'high REAL', 'low REAL', 'volume REAL']) {
@@ -238,4 +181,187 @@ export function getMeta(key: string): string | null {
 
 export function setMeta(key: string, value: string): void {
   execute('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)', [key, value])
+}
+
+// 列类型映射（与 schema.ts 的列定义保持一致，用于动态生成建表语句）
+const COL_TYPES: Record<string, string> = {
+  product_name: "TEXT DEFAULT ''",
+  broker: "TEXT DEFAULT ''",
+  contract_no: "TEXT DEFAULT ''",
+  underlying_code: "TEXT DEFAULT ''",
+  notional: 'REAL DEFAULT 0',
+  initial_price: 'REAL DEFAULT 0',
+  knock_out_dates: "TEXT DEFAULT ''",
+  knock_out_barriers: "TEXT DEFAULT ''",
+  knock_in_observation: "TEXT DEFAULT 'daily'",
+  knock_in_participation: 'REAL DEFAULT 100',
+  max_loss_pct: 'REAL DEFAULT 0',
+  rebate_annual_pct: 'REAL DEFAULT 0',
+  rebate_absolute_back_pct: 'REAL DEFAULT 0',
+  rebate_absolute_front_pct: 'REAL DEFAULT 0',
+  accrual_basis: "TEXT DEFAULT 'both'",
+  accrual_settle_tplus: 'INTEGER DEFAULT 0',
+  abs_fee_pct: 'REAL DEFAULT 0',
+  annual_fee_pct: 'REAL DEFAULT 0',
+  income_dividend_pct: 'REAL DEFAULT 0',
+  notes: "TEXT DEFAULT ''",
+  status: "TEXT DEFAULT 'active'",
+  is_ki: 'INTEGER DEFAULT 0',
+  knock_in_date: "TEXT DEFAULT ''",
+  // 雪球专属列
+  knock_out_coupons: "TEXT DEFAULT ''",
+  knock_out_enhance_participation: 'REAL DEFAULT 0',
+  dividend_coupon: 'REAL DEFAULT 0',
+  // 雪球新命名列
+  trade_start_date: "TEXT DEFAULT ''",
+  knock_in_barrier: 'REAL DEFAULT 0',
+  knock_in_strike: 'REAL DEFAULT 100',
+  margin_ratio: 'REAL DEFAULT 0',
+  maturity_coupon: 'REAL DEFAULT 0',
+  termination_date: "TEXT DEFAULT ''",
+  termination_payoff: 'REAL DEFAULT 0',
+  // 凤凰专属列
+  coupon_barrier: 'REAL DEFAULT 0',
+  coupon_dates: "TEXT DEFAULT ''",
+  coupon_rate: 'REAL DEFAULT 0',
+  coupon_received: "TEXT DEFAULT '[]'",
+  coupon_payment_dates: "TEXT DEFAULT '[]'"
+}
+
+// 根据列名列表生成建表 SQL（id + 业务列 + 时间戳）
+function buildCreateSql(table: string, cols: string[]): string {
+  const defs = cols.map((c) => `  ${c} ${COL_TYPES[c]}`).join(',\n')
+  return (
+    `CREATE TABLE IF NOT EXISTS ${table} (\n` +
+    `  id INTEGER PRIMARY KEY AUTOINCREMENT,\n` +
+    `${defs},\n` +
+    `  created_at TEXT DEFAULT (datetime('now','localtime')),\n` +
+    `  updated_at TEXT DEFAULT (datetime('now','localtime'))\n` +
+    `);`
+  )
+}
+
+// 将旧 positions 表数据按 structure_type 迁移到 snowball_positions / phoenix_positions
+// 兼容上一版列名（interest_start_date 等 → 雪球新命名），避免分表前后数据结构变化导致数据丢失
+function migrateFromLegacyPositions(): void {
+  const legacy = queryOne<{ name: string }>(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name='positions'"
+  )
+  if (!legacy || !db) return
+
+  // 雪球旧列名 → 新列名
+  const snowballRename: Record<string, string> = {
+    interest_start_date: 'trade_start_date',
+    knock_in_pct: 'knock_in_barrier',
+    knock_in_strike_pct: 'knock_in_strike',
+    margin_rate: 'margin_ratio',
+    dividend_coupon: 'maturity_coupon'
+  }
+  // 凤凰旧列名 → 新列名
+  const phoenixRename: Record<string, string> = {
+    coupon_barrier_pct: 'coupon_barrier',
+    dividend_observation_dates: 'coupon_dates',
+    knock_in_strike_pct: 'knock_in_strike',
+    knock_in_pct: 'knock_in_barrier',
+    margin_rate: 'margin_ratio'
+  }
+  const rows = queryAll<Record<string, unknown>>('SELECT * FROM positions')
+  for (const row of rows) {
+    const isPhoenix = (row.structure_type as string) === 'phoenix'
+    const target = isPhoenix ? PHOENIX_TABLE : SNOWBALL_TABLE
+    const cols = isPhoenix ? PHOENIX_COLS : SNOWBALL_COLS
+    // 归一化旧列名 → 新列名（兼容上一版列名）
+    const renameMap = isPhoenix ? phoenixRename : snowballRename
+    const norm: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(row)) {
+      const nk = renameMap[k] ?? k
+      if (!(nk in norm)) norm[nk] = v
+    }
+    // 仅迁移新表中存在的列（旧表的冗余列忽略）
+    const realCols = cols.filter((c) => c in norm)
+    const placeholders = realCols.map(() => '?').join(', ')
+    const vals = realCols.map((c) => norm[c])
+    const created = (row.created_at as string) || new Date().toISOString()
+    const updated = (row.updated_at as string) || new Date().toISOString()
+    db.run(
+      `INSERT INTO ${target} (${realCols.join(', ')}, created_at, updated_at) VALUES (${placeholders}, ?, ?)`,
+      [...vals, created, updated] as never[]
+    )
+  }
+  db.run('DROP TABLE IF EXISTS positions')
+}
+
+// 雪球表字段演进迁移：重命名 / 删除 / 新增（仅对旧库生效，新库按新 schema 建表无需迁移）
+function migrateSnowballColumns(): void {
+  if (!db) return
+  const cols = queryAll<{ name: string }>(`PRAGMA table_info(${SNOWBALL_TABLE})`).map((r) => r.name)
+  const has = (c: string) => cols.includes(c)
+  const renames: [string, string][] = [
+    ['interest_start_date', 'trade_start_date'],
+    ['knock_in_pct', 'knock_in_barrier'],
+    ['knock_in_strike_pct', 'knock_in_strike'],
+    ['margin_rate', 'margin_ratio'],
+    ['dividend_coupon', 'maturity_coupon']
+  ]
+  for (const [old, neu] of renames) {
+    if (has(old) && !has(neu)) {
+      db.run(`ALTER TABLE ${SNOWBALL_TABLE} RENAME COLUMN ${old} TO ${neu}`)
+    }
+  }
+  if (has('knock_out_pct')) {
+    db.run(`ALTER TABLE ${SNOWBALL_TABLE} DROP COLUMN knock_out_pct`)
+  }
+  if (!has('termination_date')) {
+    db.run(`ALTER TABLE ${SNOWBALL_TABLE} ADD COLUMN termination_date TEXT DEFAULT ''`)
+  }
+  if (!has('termination_payoff')) {
+    db.run(`ALTER TABLE ${SNOWBALL_TABLE} ADD COLUMN termination_payoff REAL DEFAULT 0`)
+  }
+  if (!has('is_ki')) {
+    db.run(`ALTER TABLE ${SNOWBALL_TABLE} ADD COLUMN is_ki INTEGER DEFAULT 0`)
+  }
+  if (!has('knock_in_date')) {
+    db.run(`ALTER TABLE ${SNOWBALL_TABLE} ADD COLUMN knock_in_date TEXT DEFAULT ''`)
+  }
+}
+
+// 凤凰表字段演进迁移：重命名 / 删除（仅对旧库生效，新库按新 schema 建表无需迁移）
+function migratePhoenixColumns(): void {
+  if (!db) return
+  const cols = queryAll<{ name: string }>(`PRAGMA table_info(${PHOENIX_TABLE})`).map((r) => r.name)
+  const has = (c: string) => cols.includes(c)
+  const renames: [string, string][] = [
+    ['interest_start_date', 'trade_start_date'],
+    ['coupon_barrier_pct', 'coupon_barrier'],
+    ['dividend_observation_dates', 'coupon_dates'],
+    ['knock_in_strike_pct', 'knock_in_strike'],
+    ['knock_in_pct', 'knock_in_barrier'],
+    ['margin_rate', 'margin_ratio']
+  ]
+  for (const [old, neu] of renames) {
+    if (has(old) && !has(neu)) {
+      db.run(`ALTER TABLE ${PHOENIX_TABLE} RENAME COLUMN ${old} TO ${neu}`)
+    }
+  }
+  for (const drop of ['dividend_rate_pct', 'observation_freq', 'knock_in_observed', 'knock_out_observed', 'knock_out_pct']) {
+    if (has(drop)) {
+      db.run(`ALTER TABLE ${PHOENIX_TABLE} DROP COLUMN ${drop}`)
+    }
+  }
+  if (!has('is_ki')) {
+    db.run(`ALTER TABLE ${PHOENIX_TABLE} ADD COLUMN is_ki INTEGER DEFAULT 0`)
+  }
+  if (!has('knock_in_date')) {
+    db.run(`ALTER TABLE ${PHOENIX_TABLE} ADD COLUMN knock_in_date TEXT DEFAULT ''`)
+  }
+  const phoenixAdd: [string, string][] = [
+    ['coupon_rate', 'REAL DEFAULT 0'],
+    ['coupon_received', "TEXT DEFAULT '[]'"],
+    ['coupon_payment_dates', "TEXT DEFAULT '[]'"],
+    ['termination_date', "TEXT DEFAULT ''"],
+    ['termination_payoff', 'REAL DEFAULT 0']
+  ]
+  for (const [c, def] of phoenixAdd) {
+    if (!has(c)) db.run(`ALTER TABLE ${PHOENIX_TABLE} ADD COLUMN ${c} ${def}`)
+  }
 }
