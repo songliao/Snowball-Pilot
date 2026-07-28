@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import {
   Card, Tag, Button, Space, message, Row, Col, Popconfirm, Modal, DatePicker, InputNumber
 } from 'antd'
 import {
   ArrowLeftOutlined, EditOutlined, SyncOutlined,
-  WarningOutlined, DollarOutlined, ClockCircleOutlined, RollbackOutlined
+  WarningOutlined, DollarOutlined, ClockCircleOutlined, RollbackOutlined,
+  PlusOutlined, GiftOutlined
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { usePositionStore } from '../stores/positionStore'
@@ -14,10 +15,21 @@ import { computeKnockOutProfit } from '../utils/calc'
 import { formatDate, STATUS_MAP } from '../utils/format'
 import PositionForm from './PositionForm'
 
+function parseJsonArray<T>(s: string | null | undefined): T[] {
+  if (!s) return []
+  try {
+    const v = JSON.parse(s)
+    return Array.isArray(v) ? v : []
+  } catch {
+    return []
+  }
+}
+
 export default function PositionDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { current, fetchById, updateStatus } = usePositionStore()
+  const location = useLocation()
+  const { current, fetchById, updateStatus, update } = usePositionStore()
   const { latestPrices, prices, fetchLatestPrice, fetchRemotePrice, fetchPriceHistory } = useMarketStore()
   const [kiModalOpen, setKiModalOpen] = useState(false)
   const [kiDate, setKiDate] = useState<dayjs.Dayjs | null>(dayjs())
@@ -25,6 +37,9 @@ export default function PositionDetail() {
   const [endAction, setEndAction] = useState<'knocked_out' | 'matured'>('knocked_out')
   const [endDate, setEndDate] = useState<dayjs.Dayjs | null>(dayjs())
   const [endPayoff, setEndPayoff] = useState<number | null>(null)
+  const [couponModalOpen, setCouponModalOpen] = useState(false)
+  const [couponDate, setCouponDate] = useState<dayjs.Dayjs | null>(dayjs())
+  const [couponAmount, setCouponAmount] = useState<number | null>(null)
 
   useEffect(() => {
     if (id) fetchById(Number(id))
@@ -103,6 +118,62 @@ export default function PositionDetail() {
       : null
   const statusInfo = STATUS_MAP[pos.status] || { label: pos.status, color: 'default' }
 
+  // 凤凰：最近派息观察日，及其对应障碍价与派息率
+  const isPhoenix = pos.structure_type === 'phoenix'
+  const couponDates = pos.coupon_dates ? (JSON.parse(pos.coupon_dates) as string[]) : []
+  let nearestCpnIdx = -1
+  let nearestCpnDiff = Infinity
+  couponDates.forEach((d, i) => {
+    const diff = Math.abs(dayjs(d).diff(today, 'day'))
+    if (diff < nearestCpnDiff) {
+      nearestCpnDiff = diff
+      nearestCpnIdx = i
+    }
+  })
+  const nearestCpnDate = nearestCpnIdx >= 0 ? couponDates[nearestCpnIdx] : null
+  const couponBarrierPrice =
+    pos.coupon_barrier != null && pos.initial_price
+      ? pos.initial_price * pos.coupon_barrier
+      : null
+  const cpnRemainingDays =
+    nearestCpnDate != null
+      ? Math.max(0, dayjs(nearestCpnDate).startOf('day').diff(dayjs().startOf('day'), 'day'))
+      : null
+  const cpnGapPct =
+    couponBarrierPrice != null && currentPrice
+      ? (couponBarrierPrice / currentPrice - 1) * 100
+      : null
+  const couponRatePct = pos.coupon_rate != null ? pos.coupon_rate * 100 : null
+  const couponEstAmount =
+    pos.notional != null && pos.coupon_rate != null ? pos.notional * pos.coupon_rate : null
+  // 预计派息收益（仅下一期）：派息金额 - 当期交易费用
+  // 派息金额 = 派息率 × 名义本金；当期交易费用 = 派息金额 × 收益分红
+  const cpnGrossAmount = couponEstAmount
+  const couponFee = couponEstAmount != null ? couponEstAmount * (pos.income_dividend_pct ?? 0) : null
+  const couponNet = couponEstAmount != null ? couponEstAmount * (1 - (pos.income_dividend_pct ?? 0)) : null
+  // 敲入预警：敲入障碍价格、观察方式、观察日、自然日天数、距离敲入距离
+  const kiBarrierPct = pos.knock_in_barrier
+  const kiBarrierPrice =
+    kiBarrierPct != null && pos.initial_price
+      ? pos.initial_price * kiBarrierPct
+      : null
+  const kiObserveMode = pos.knock_in_observation // 'daily' 每日 / 'maturity' 到期
+  // 合约到期日 = 最后一个敲出观察日（无论敲入观察方式）
+  const maturityDate = koDates.length ? koDates[koDates.length - 1] : null
+  // 到期观察的敲入观察日 = 到期日；每日观察无固定观察日（不展示）
+  const kiObserveDate = kiObserveMode === 'maturity' ? maturityDate : null
+  // 剩余自然日：从今天到合约到期日的自然日天数（每日/到期观察都展示）
+  const kiNatDays = maturityDate != null
+    ? dayjs(maturityDate).startOf('day').diff(dayjs().startOf('day'), 'day')
+    : null
+  // 距离敲入距离 = 敲入障碍价格 / 现价 - 1（负=尚未敲入，正=已敲入）
+  const kiGapPct =
+    kiBarrierPrice != null && currentPrice
+      ? (kiBarrierPrice / currentPrice - 1) * 100
+      : null
+  // 指标卡片列宽：按卡片数铺满整行（雪球 3 张 lg=8，凤凰 4 张 lg=6），两行均无空隙
+  const metricColProps = isPhoenix ? { xs: 24, sm: 12, lg: 6 } : { xs: 24, sm: 12, lg: 8 }
+
   const handleStatusChange = async (status: string, kiDateStr?: string) => {
     await updateStatus(
       pos.id!,
@@ -151,6 +222,32 @@ export default function PositionDetail() {
     fetchById(pos.id!)
   }
 
+  const handleCouponConfirm = async () => {
+    if (!pos) return
+    setCouponModalOpen(false)
+    const dateStr = couponDate ? couponDate.format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD')
+    const amount = Number(couponAmount ?? 0)
+    const amountStr = amount.toFixed(2)
+    // 派息支付日 与 已派息金额 按索引一一对应
+    const pairs = parseJsonArray<string>(pos.coupon_payment_dates).map((d, i) => ({
+      d,
+      a: parseJsonArray<string>(pos.coupon_received)[i] ?? '0.00'
+    }))
+    const idx = pairs.findIndex((p) => p.d === dateStr)
+    if (idx >= 0) pairs[idx].a = amountStr // 同日重记：更新对应金额
+    else pairs.push({ d: dateStr, a: amountStr })
+    pairs.sort((x, y) => x.d.localeCompare(y.d))
+    await update(pos.id!, {
+      structure_type: pos.structure_type,
+      coupon_payment_dates: JSON.stringify(pairs.map((p) => p.d)),
+      coupon_received: JSON.stringify(pairs.map((p) => p.a))
+    })
+    message.success('已记录派息')
+    setCouponDate(dayjs())
+    setCouponAmount(null)
+    fetchById(pos.id!)
+  }
+
   const handleFetchPrice = async () => {
     const price = await fetchRemotePrice(pos.underlying_code)
     if (price) {
@@ -168,7 +265,7 @@ export default function PositionDetail() {
           <Button
             type="text"
             icon={<ArrowLeftOutlined />}
-            onClick={() => navigate('/positions')}
+            onClick={() => navigate((location.state as { from?: string })?.from || '/positions')}
             style={{ width: 32, height: 32, padding: 0, borderRadius: 6 }}
           />
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -205,6 +302,15 @@ export default function PositionDetail() {
                 敲入于{pos.knock_in_date ? formatDate(pos.knock_in_date) : ''}
               </Button>
             </Popconfirm>
+          )}
+          {pos.structure_type === 'phoenix' && (
+            <Button
+              className="action-btn action-btn--coupon"
+              icon={<span className="nav-icon-circle nav-icon-circle--coupon"><GiftOutlined /></span>}
+              onClick={() => { setCouponDate(dayjs()); setCouponAmount(null); setCouponModalOpen(true) }}
+            >
+              记录派息
+            </Button>
           )}
           {(pos.status === 'active' || pos.status === 'knocked_in') && (
             <Button
@@ -256,46 +362,42 @@ export default function PositionDetail() {
 
       {/* Metrics */}
       {(pos.status !== 'knocked_out' && pos.status !== 'matured') && (
-      <Row gutter={[16, 16]} align="stretch" style={{ marginBottom: 24 }}>
-        <Col span={8}>
-          <Card className="glass-card index-card" variant="borderless" style={{ height: '100%' }}>
-            <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: 12, fontWeight: 600 }}>{pos.underlying || pos.underlying_code}</span>
-              <Button size="small" type="text" icon={<SyncOutlined />} onClick={handleFetchPrice} style={{ fontSize: 12, opacity: 0.5 }} />
-            </div>
-            {currentPrice != null ? (
-              <>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12 }}>
-                  <div style={{ fontSize: 20, fontWeight: 700, color, letterSpacing: '-0.02em' }}>
+      <>
+      {/* 行情：单独一行，按钮样式 */}
+      <Row style={{ marginBottom: 16, maxWidth: 1480, marginRight: 'auto' }}>
+        <Col>
+          <Card className="glass-card quote-pill" variant="borderless">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 20, padding: '2px 6px' }}>
+              <span style={{ fontSize: 13, fontWeight: 600, opacity: 0.85 }}>{pos.underlying || pos.underlying_code}</span>
+              {currentPrice != null ? (
+                <>
+                  <span style={{ fontSize: 20, fontWeight: 700, color, letterSpacing: '-0.02em' }}>
                     {currentPrice.toFixed(2)}
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 11, opacity: 0.5 }}>期初</div>
-                    <div style={{ fontSize: 13, fontWeight: 500 }}>
-                      {pos.initial_price?.toFixed(2) ?? '—'}
-                    </div>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
-                  <span style={{ fontSize: 11, opacity: 0.5 }}>最新涨跌幅</span>
+                  </span>
                   <span style={{
                     fontSize: 12,
                     fontWeight: 500,
                     color,
                     background: up ? 'rgba(239,68,68,0.07)' : 'rgba(34,197,94,0.07)',
-                    padding: '1px 5px',
-                    borderRadius: 3
+                    padding: '1px 6px',
+                    borderRadius: 4
                   }}>
                     {changePct != null ? `${changePct >= 0 ? '+' : ''}${changePct.toFixed(2)}%` : '—'}
                   </span>
-                </div>
-              </>
-            ) : (
-              <div style={{ fontSize: 12, opacity: 0.35, padding: '8px 0' }}>未录入</div>
-            )}
+                  <span style={{ fontSize: 12, opacity: 0.5 }}>
+                    期初 {pos.initial_price?.toFixed(2) ?? '—'}
+                  </span>
+                </>
+              ) : (
+                <span style={{ fontSize: 12, opacity: 0.35 }}>未录入</span>
+              )}
+              <Button size="small" type="text" icon={<SyncOutlined />} onClick={handleFetchPrice} style={{ fontSize: 12, opacity: 0.5, marginLeft: 'auto' }} />
+            </div>
           </Card>
         </Col>
-        <Col span={8}>
+      </Row>
+      <Row gutter={[16, 16]} align="stretch" style={{ marginBottom: 24, maxWidth: 1480, marginRight: 'auto' }}>
+        <Col {...metricColProps}>
           <Card className="stat-card content-card" variant="borderless" style={{ height: '100%' }}>
             <div style={{ fontSize: 13, opacity: 0.55, marginBottom: 10, fontWeight: 500 }}>最近敲出观察</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 8px' }}>
@@ -337,7 +439,85 @@ export default function PositionDetail() {
             </div>
           </Card>
         </Col>
-        <Col span={8}>
+        {isPhoenix ? (
+        <>
+        <Col {...metricColProps}>
+          <Card className="stat-card content-card" variant="borderless" style={{ height: '100%' }}>
+            <div style={{ fontSize: 13, opacity: 0.55, marginBottom: 10, fontWeight: 500 }}>最近派息观察</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 8px' }}>
+              <div>
+                <div style={{ fontSize: 12, opacity: 0.5, marginBottom: 2 }}>观察日期</div>
+                <div style={{ fontWeight: 600, fontSize: 15 }}>
+                  {nearestCpnDate ? formatDate(nearestCpnDate) : '—'}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 12, opacity: 0.5, marginBottom: 2 }}>剩余自然日</div>
+                <div style={{ fontWeight: 600, fontSize: 15 }}>
+                  {cpnRemainingDays != null ? `${cpnRemainingDays} 天` : '—'}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 12, opacity: 0.5, marginBottom: 2 }}>观察点位</div>
+                <div style={{ fontWeight: 600, fontSize: 15 }}>
+                  {couponBarrierPrice != null ? couponBarrierPrice.toFixed(2) : '—'}
+                  {pos.coupon_barrier != null && (
+                    <span style={{ fontSize: 11, opacity: 0.4, marginLeft: 4 }}>{Math.round(pos.coupon_barrier * 100)}%</span>
+                  )}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 12, opacity: 0.5, marginBottom: 2 }}>
+                  {cpnGapPct == null ? '点位差距' : cpnGapPct < 0 ? '当前高于派息障碍价格' : '当前低于派息障碍价格'}
+                </div>
+                <div
+                  style={{
+                    fontWeight: 600,
+                    fontSize: 15,
+                    color: cpnGapPct == null ? undefined : cpnGapPct < 0 ? '#22c55e' : '#ef4444',
+                  }}
+                >
+                  {cpnGapPct != null ? `${Math.abs(cpnGapPct).toFixed(2)}%` : '—'}
+                </div>
+              </div>
+            </div>
+          </Card>
+        </Col>
+        <Col {...metricColProps}>
+          <Card className="stat-card content-card" variant="borderless" style={{ height: '100%' }}>
+            <div style={{ fontSize: 13, opacity: 0.55, marginBottom: 10, fontWeight: 500 }}>预计派息收益</div>
+            <div style={{ fontSize: 24, fontWeight: 700 }}>
+              {couponNet != null
+                ? `¥${couponNet.toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
+                : '—'}
+            </div>
+            {(cpnGrossAmount != null || couponFee != null) && (
+              <div style={{ fontSize: 12, opacity: 0.6, marginTop: 10, lineHeight: 1.6 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>派息金额</span>
+                  <span>
+                    ¥{(cpnGrossAmount ?? 0).toLocaleString('zh-CN', { maximumFractionDigits: 0 })}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>当期交易费用</span>
+                  <span>
+                    -¥{(couponFee ?? 0).toLocaleString('zh-CN', { maximumFractionDigits: 0 })}
+                  </span>
+                </div>
+                {couponRatePct != null && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>派息率</span>
+                    <span>{couponRatePct.toFixed(4)}%</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </Card>
+        </Col>
+        </>
+        ) : (
+        <Col {...metricColProps}>
           <Card className="stat-card content-card" variant="borderless" style={{ height: '100%' }}>
             <div style={{ fontSize: 13, opacity: 0.55, marginBottom: 10, fontWeight: 500 }}>敲出收益估算</div>
             <div style={{ fontSize: 24, fontWeight: 700 }}>
@@ -371,7 +551,65 @@ export default function PositionDetail() {
             )}
           </Card>
         </Col>
+        )}
+        {!pos.is_ki && (
+        <Col {...metricColProps}>
+          <Card className="stat-card content-card" variant="borderless" style={{ height: '100%' }}>
+            <div style={{ fontSize: 13, opacity: 0.55, marginBottom: 10, fontWeight: 500 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 18, height: 18, marginRight: 6, borderRadius: '50%', background: '#ef4444', color: '#fff', fontSize: 11 }}>
+                <WarningOutlined />
+              </span>
+              敲入预警
+              <span style={{ fontSize: 11, opacity: 0.6, marginLeft: 8, fontWeight: 400 }}>
+                {kiObserveMode === 'daily' ? '每日观察' : kiObserveMode === 'maturity' ? '到期观察' : ''}
+              </span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 8px' }}>
+              {kiObserveMode !== 'daily' && (
+                <div>
+                  <div style={{ fontSize: 12, opacity: 0.5, marginBottom: 2 }}>敲入观察日</div>
+                  <div style={{ fontWeight: 600, fontSize: 15 }}>
+                    {kiObserveDate ? formatDate(kiObserveDate) : '—'}
+                  </div>
+                </div>
+              )}
+              {kiNatDays != null && (
+                <div style={{ gridColumn: kiObserveDate ? undefined : '1 / -1' }}>
+                  <div style={{ fontSize: 12, opacity: 0.5, marginBottom: 2 }}>剩余自然日</div>
+                  <div style={{ fontWeight: 600, fontSize: 15 }}>
+                    {kiNatDays != null ? `${kiNatDays} 天` : '—'}
+                  </div>
+                </div>
+              )}
+              <div>
+                <div style={{ fontSize: 12, opacity: 0.5, marginBottom: 2 }}>观察点位</div>
+                <div style={{ fontWeight: 600, fontSize: 15 }}>
+                  {kiBarrierPrice != null ? kiBarrierPrice.toFixed(2) : '—'}
+                  {kiBarrierPct != null && (
+                    <span style={{ fontSize: 11, opacity: 0.4, marginLeft: 4 }}>{(kiBarrierPct * 100).toFixed(2)}%</span>
+                  )}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 12, opacity: 0.5, marginBottom: 2 }}>
+                  {kiGapPct == null ? '距离敲入' : kiGapPct < 0 ? '当前高于敲入障碍价格' : '当前低于敲入障碍价格'}
+                </div>
+                <div
+                  style={{
+                    fontWeight: 600,
+                    fontSize: 15,
+                    color: kiGapPct == null ? undefined : kiGapPct < 0 ? '#22c55e' : '#ef4444',
+                  }}
+                >
+                  {kiGapPct != null ? `${Math.abs(kiGapPct).toFixed(2)}%` : '—'}
+                </div>
+              </div>
+            </div>
+          </Card>
+        </Col>
+        )}
       </Row>
+      </>
       )}
 
       {(pos.status === 'knocked_out' || pos.status === 'matured') && (
@@ -446,6 +684,37 @@ export default function PositionDetail() {
           formatter={(val) => `${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
           parser={(val) => (val ? Number(val.replace(/,/g, '')) : 0) as any}
           addonAfter="元"
+        />
+      </Modal>
+
+      <Modal
+        title="记录派息"
+        open={couponModalOpen}
+        onOk={handleCouponConfirm}
+        onCancel={() => setCouponModalOpen(false)}
+        okText="保存"
+        cancelText="取消"
+        destroyOnClose
+      >
+        <div style={{ marginBottom: 8, opacity: 0.6 }}>派息支付日：</div>
+        <DatePicker
+          value={couponDate}
+          onChange={(d) => setCouponDate(d)}
+          style={{ width: '100%' }}
+          allowClear={false}
+        />
+        <div style={{ marginBottom: 8, opacity: 0.6, marginTop: 16 }}>派息金额（元）：</div>
+        <InputNumber
+          value={couponAmount}
+          onChange={(v) => setCouponAmount(v)}
+          style={{ width: '100%' }}
+          min={0}
+          precision={2}
+          step={100}
+          formatter={(val) => `${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+          parser={(val) => (val ? Number(val.replace(/,/g, '')) : 0) as any}
+          addonAfter="元"
+          placeholder="实际派发金额"
         />
       </Modal>
     </div>

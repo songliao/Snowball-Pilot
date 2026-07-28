@@ -2,20 +2,26 @@ import { ipcMain } from 'electron'
 import { queryAll, queryOne, execute, getLastInsertId } from './index'
 import {
   COMMON_COLS,
+  PHOENIX_EXTRA,
   colsForType,
   tableForType,
   colValue
 } from './schema'
 
 const COMMON_SELECT = COMMON_COLS.join(', ')
+// 凤凰专属列在列表中也需要展示（如派息观察日 / 派息障碍），雪球行用 0/'' 占位以对齐 UNION 列数
+const PHOENIX_EXTRA_SELECT_SNOW = PHOENIX_EXTRA.map((c) =>
+  (c === 'coupon_barrier' || c === 'coupon_rate' ? '0' : "''") + ` as ${c}`
+).join(', ')
+const PHOENIX_EXTRA_SELECT_PHOENIX = PHOENIX_EXTRA.join(', ')
 
 export function registerPositionHandlers(): void {
   // 列表：两张表 UNION，并带上 structure_type 字面量
   ipcMain.handle('positions:get-all', () => {
     return queryAll(
-      `SELECT id, ${COMMON_SELECT}, created_at, 'snowball' as structure_type FROM snowball_positions
+      `SELECT id, ${COMMON_SELECT}, ${PHOENIX_EXTRA_SELECT_SNOW}, created_at, 'snowball' as structure_type FROM snowball_positions
        UNION ALL
-       SELECT id, ${COMMON_SELECT}, created_at, 'phoenix' as structure_type FROM phoenix_positions
+       SELECT id, ${COMMON_SELECT}, ${PHOENIX_EXTRA_SELECT_PHOENIX}, created_at, 'phoenix' as structure_type FROM phoenix_positions
        ORDER BY created_at DESC`
     )
   })

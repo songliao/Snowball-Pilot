@@ -14,6 +14,7 @@ import {
 import snowPng from '../assets/snow.png'
 import { useThemeStore } from '../stores/themeStore'
 import { useAuthStore } from '../stores/authStore'
+import { usePositionStore } from '../stores/positionStore'
 import logo from '../assets/logo.png'
 import phoenixPng from '../assets/money-saving.png'
 
@@ -21,10 +22,10 @@ const { Sider, Content } = Layout
 
 const menuItems = [
   { key: '/', icon: <span className="nav-icon-circle"><CompassOutlined /></span>, label: '总览' },
+  { key: '/events', icon: <span className="nav-icon-circle"><CalendarOutlined /></span>, label: '事件日历' },
   { key: '/positions', icon: <span className="nav-icon-circle"><WalletOutlined /></span>, label: '持仓管理' },
   { key: '/instruments', icon: <span className="nav-icon-circle"><FundOutlined /></span>, label: '标的管理' },
-  { key: '/analysis', icon: <span className="nav-icon-circle"><PieChartOutlined /></span>, label: '组合分析' },
-  { key: '/events', icon: <span className="nav-icon-circle"><CalendarOutlined /></span>, label: '事件日历' }
+  { key: '/analysis', icon: <span className="nav-icon-circle"><PieChartOutlined /></span>, label: '组合分析' }
 ]
 
 const STRUCTURE_TYPES = [
@@ -101,6 +102,13 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const selectedKey = menuItems.find(
     (item) => item.key !== '/' && location.pathname.startsWith(item.key)
   )?.key || '/'
+
+  // 仅凤凰持仓详情页需要更宽的内容区以容纳并排的 4 张指标卡片；雪球及其它页面保持 1100
+  const currentStructure = usePositionStore((s) => s.current?.structure_type)
+  const isPhoenixDetail =
+    /^\/positions\/.+/.test(location.pathname) && currentStructure === 'phoenix'
+  const isPositionsList = location.pathname === '/positions'
+  const contentMaxWidth = isPhoenixDetail ? 1480 : isPositionsList ? 1200 : 1100
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -297,7 +305,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             minHeight: '100vh'
           }}
         >
-          <div className="page-content" style={{ maxWidth: 1100 }}>
+          <div className="page-content" style={{ maxWidth: contentMaxWidth }}>
             {children}
           </div>
         </Content>

@@ -74,27 +74,46 @@ export default function Positions() {
     return { date: dates[idx], barrierPrice }
   }
 
-  const buildColumns = (koBarrierWidth: number, isPhoenix: boolean): TableProps<PositionData>['columns'] => {
+  const buildColumns = (isPhoenix: boolean): TableProps<PositionData>['columns'] => {
+    // 百分比列宽：随页面宽度等比伸缩，各列相对均衡
+    const W = isPhoenix
+      ? { contract: '7%', date: '7.5%', underlying: '9.5%', price: '9%', couponDate: '10%', couponBarrier: '9%', koDate: '10%', koBarrier: '9%', notional: '9%', margin: '8%', status: '7%' }
+      : { contract: '8%', date: '9%', underlying: '11%', price: '10%', koDate: '12%', koBarrier: '10%', notional: '13%', margin: '10%', status: '9%' }
     const cols: TableProps<PositionData>['columns'] = [
       {
         title: '合约编号',
         dataIndex: 'contract_no',
         key: 'contract_no',
-        width: 75,
+        width: W.contract,
         ellipsis: true,
-        render: (v: string) => v || '—'
+        className: `contract-no-col contract-no-col--${isPhoenix ? 'phoenix' : 'snow'}`,
+        onHeaderCell: () => ({ className: `contract-no-col contract-no-col--${isPhoenix ? 'phoenix' : 'snow'}` }),
+        render: (v: string) => (
+          <span style={{ display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {v || '—'}
+          </span>
+        )
+      },
+      {
+        title: '起息日',
+        key: 'trade_start_date',
+        width: W.date,
+        className: 'trade-date-col',
+        onHeaderCell: () => ({ className: 'trade-date-col' }),
+        render: (_, r) => (r.trade_start_date ? dayjs(r.trade_start_date).format('YY-MM-DD') : '—')
       },
       {
         title: '挂钩标的',
         key: 'underlying_code',
-        width: 90,
+        width: W.underlying,
         ellipsis: true,
         render: (_, r) => r.underlying_code || r.underlying || '—'
       },
       {
       title: '标的现价',
       key: 'underlying_price',
-      width: 80,
+      width: W.price,
+      ellipsis: true,
         align: 'right',
         render: (_, r) => {
           const price = latestPrices[r.underlying_code]
@@ -104,7 +123,7 @@ export default function Positions() {
       {
         title: '敲出观察日',
         key: 'next_ko_date',
-        width: 98,
+        width: W.koDate,
         render: (_, r) => {
           const { date } = getNextKo(r)
           return date ? dayjs(date).format('YY-MM-DD') : '—'
@@ -113,7 +132,8 @@ export default function Positions() {
       {
         title: '敲出障碍',
         key: 'next_ko_barrier',
-        width: koBarrierWidth,
+        width: W.koBarrier,
+        ellipsis: true,
         align: 'right',
         render: (_, r) => {
           const { barrierPrice } = getNextKo(r)
@@ -124,7 +144,7 @@ export default function Positions() {
         title: '名义本金',
         dataIndex: 'notional',
         key: 'notional',
-        width: 105,
+        width: W.notional,
         align: 'right',
         render: (v: number) => (v != null ? formatMoney(v) : '—')
       },
@@ -132,7 +152,8 @@ export default function Positions() {
       title: '保证金',
       dataIndex: 'margin_ratio',
       key: 'margin_ratio',
-      width: 80,
+      width: W.margin,
+      ellipsis: true,
         align: 'right',
         render: (v: number) => (v != null ? formatPercent(v) : '—')
       },
@@ -140,7 +161,7 @@ export default function Positions() {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
-      width: 75,
+      width: W.status,
       render: (v: string) =>
         v ? (
           <Tag className={`status-tag status-tag--${v}`}>{STATUS_MAP[v]?.label || v}</Tag>
@@ -151,6 +172,7 @@ export default function Positions() {
       {
         title: '操作',
         key: 'action',
+        width: 72,
         align: 'right',
         render: (_, r) => (
           <Space size={4}>
@@ -204,7 +226,7 @@ export default function Positions() {
       cols.splice(insertAt, 0, {
         title: '派息观察日',
         key: 'next_coupon_date',
-        width: 98,
+        width: W.couponDate,
         render: (_, r: PositionData) => {
           const { date } = getNextCoupon(r)
           return date ? dayjs(date).format('YY-MM-DD') : '—'
@@ -213,7 +235,7 @@ export default function Positions() {
       cols.splice(insertAt + 1, 0, {
         title: '派息障碍',
         key: 'next_coupon_barrier',
-        width: 88,
+        width: W.couponBarrier,
         align: 'right',
         render: (_, r: PositionData) => {
           const { barrierPrice } = getNextCoupon(r)
@@ -223,8 +245,8 @@ export default function Positions() {
     }
     return cols
   }
-  const snowballColumns = buildColumns(75, false)
-  const phoenixColumns = buildColumns(100, true)
+  const snowballColumns = buildColumns(false)
+  const phoenixColumns = buildColumns(true)
 
   const snowballList = positions.filter((p) => p.structure_type === 'snowball')
   const phoenixList = positions.filter((p) => p.structure_type === 'phoenix')
@@ -235,7 +257,6 @@ export default function Positions() {
       loading={loading}
       columns={cols}
       dataSource={data}
-      scroll={{ x: 'max-content' }}
       pagination={{ pageSize: 12, hideOnSinglePage: true }}
       locale={{ emptyText: '暂无持仓' }}
       onRow={(record) => ({

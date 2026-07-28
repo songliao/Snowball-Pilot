@@ -216,7 +216,7 @@ html, body {
 
 /* 簿记卡片：收窄整体宽度（左对齐，与导航栏间距不变），避免输入框被拉得过宽 */
 .bookkeeping-card {
-  max-width: 720px;
+  max-width: 725px;
 }
 
 /* 信息组标题靠左（无线）：卡片左右内边距移到表单上，标题用负边距贴卡片左边缘 */
@@ -429,6 +429,17 @@ html, body {
   border-color: rgba(244, 63, 94, 0.35) !important;
   color: #9f1239 !important;
 }
+/* 记录派息：柔和青 */
+.action-btn--coupon.ant-btn {
+  background: rgba(6, 182, 212, 0.08) !important;
+  border-color: rgba(6, 182, 212, 0.22) !important;
+  color: #0e7490 !important;
+}
+.action-btn--coupon.ant-btn:hover {
+  background: rgba(6, 182, 212, 0.14) !important;
+  border-color: rgba(6, 182, 212, 0.35) !important;
+  color: #155e75 !important;
+}
 [data-theme='dark'] .action-btn--ki.ant-btn {
   background: rgba(251, 146, 60, 0.1) !important;
   border-color: rgba(251, 146, 60, 0.28) !important;
@@ -459,6 +470,16 @@ html, body {
   border-color: rgba(251, 113, 133, 0.42) !important;
   color: #fecdd3 !important;
 }
+[data-theme='dark'] .action-btn--coupon.ant-btn {
+  background: rgba(45, 212, 191, 0.1) !important;
+  border-color: rgba(45, 212, 191, 0.28) !important;
+  color: #5eead4 !important;
+}
+[data-theme='dark'] .action-btn--coupon.ant-btn:hover {
+  background: rgba(45, 212, 191, 0.18) !important;
+  border-color: rgba(45, 212, 191, 0.42) !important;
+  color: #99f6e4 !important;
+}
 
 /* ===== Table ===== */
 .ant-table {
@@ -469,6 +490,10 @@ html, body {
 .ant-table-thead > tr > td {
   font-weight: 500;
   font-size: 12px;
+  white-space: nowrap !important;
+}
+.ant-table-tbody > tr > td {
+  white-space: nowrap;
 }
 
 .ant-table-tbody > tr {
@@ -622,6 +647,11 @@ html, body {
   border-color: rgba(34, 197, 94, 0.22);
   color: #15803d;
 }
+.nav-icon-circle--coupon {
+  background: rgba(6, 182, 212, 0.08);
+  border-color: rgba(6, 182, 212, 0.22);
+  color: #0e7490;
+}
 [data-theme='dark'] .nav-icon-circle--ki {
   background: rgba(251, 146, 60, 0.1);
   border-color: rgba(251, 146, 60, 0.28);
@@ -636,6 +666,11 @@ html, body {
   background: rgba(74, 222, 128, 0.1);
   border-color: rgba(74, 222, 128, 0.28);
   color: #86efac;
+}
+[data-theme='dark'] .nav-icon-circle--coupon {
+  background: rgba(45, 212, 191, 0.1);
+  border-color: rgba(45, 212, 191, 0.28);
+  color: #5eead4;
 }
 /* 在按钮内收紧尺寸与间距 */
 .action-btn.ant-btn .nav-icon-circle {
@@ -741,6 +776,17 @@ html, body {
   padding: 14px 16px;
 }
 
+/* ===== Quote Pill (按钮样式行情条) ===== */
+.quote-pill {
+  border-radius: 24px !important;
+  padding: 0;
+  display: inline-block;
+}
+
+.quote-pill .ant-card-body {
+  padding: 8px 16px;
+}
+
 /* ===== 新增标的提示文字 ===== */
 .instrument-hint {
   color: rgba(0, 0, 0, 0.45);
@@ -748,4 +794,215 @@ html, body {
 
 [data-theme='dark'] .instrument-hint {
   color: rgba(255, 255, 255, 0.65);
+}
+
+/* ===== 持仓列表：合约编号列强制锁定，不被内容撑开 ===== */
+.contract-no-col {
+  padding-left: 6px !important;
+  padding-right: 6px !important;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.contract-no-col--snow {
+  width: 120px !important;
+  min-width: 120px !important;
+  max-width: 120px !important;
+}
+.contract-no-col--phoenix {
+  width: 80px !important;
+  min-width: 80px !important;
+  max-width: 80px !important;
+}
+
+/* 起息日：刚好容纳 YY-MM-DD */
+.trade-date-col {
+  width: 72px !important;
+  min-width: 72px !important;
+  max-width: 72px !important;
+  padding-left: 6px !important;
+  padding-right: 6px !important;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* ===== Event Calendar 轻量自绘月历 ===== */
+.mini-cal {
+  --mc-text: rgba(255, 255, 255, 0.85);
+  --mc-dim: rgba(255, 255, 255, 0.4);
+  --mc-border: rgba(255, 255, 255, 0.1);
+  --mc-hover: rgba(255, 255, 255, 0.06);
+  --mc-accent: #93c5fd;
+  --mc-accent-bg: rgba(96, 165, 250, 0.16);
+  --mc-accent-border: rgba(96, 165, 250, 0.45);
+  font-size: 13px;
+  color: var(--mc-text);
+}
+
+[data-theme='light'] .mini-cal {
+  --mc-text: rgba(0, 0, 0, 0.85);
+  --mc-dim: rgba(0, 0, 0, 0.4);
+  --mc-border: rgba(0, 0, 0, 0.08);
+  --mc-hover: rgba(0, 0, 0, 0.04);
+  --mc-accent: #2563eb;
+  --mc-accent-bg: rgba(59, 130, 246, 0.12);
+  --mc-accent-border: rgba(59, 130, 246, 0.4);
+}
+
+.mini-cal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 2px 10px;
+}
+.mini-cal-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+.mini-cal-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+/* 左右翻月：圆形图标按钮 */
+.mini-cal-nav-btn {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--mc-border);
+  background: var(--mc-hover);
+  color: var(--mc-text);
+  border-radius: 50%;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.mini-cal-nav-btn:hover {
+  border-color: var(--mc-accent);
+  color: var(--mc-accent);
+  background: var(--mc-accent-bg);
+}
+/* “今天”：圆角胶囊 */
+.mini-cal-nav-today {
+  height: 26px;
+  padding: 0 12px;
+  border: 1px solid var(--mc-border);
+  background: var(--mc-hover);
+  color: var(--mc-text);
+  border-radius: 13px;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.mini-cal-nav-today:hover {
+  border-color: var(--mc-accent);
+  color: var(--mc-accent);
+  background: var(--mc-accent-bg);
+}
+.mini-cal-nav-btn:active,
+.mini-cal-nav-today:active {
+  transform: scale(0.94);
+}
+
+.mini-cal-weekrow,
+.mini-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+.mini-cal-weekday {
+  text-align: center;
+  font-size: 11px;
+  color: var(--mc-dim);
+  padding-bottom: 6px;
+}
+
+.mini-cal-cell {
+  min-height: 42px;
+  padding: 3px 4px 5px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.mini-cal-cell:hover {
+  background: var(--mc-hover);
+}
+.mini-cal-cell.is-out {
+  opacity: 0.35;
+}
+.mini-cal-cell.is-today {
+  border-color: var(--mc-accent-border);
+}
+.mini-cal-cell.is-today .mini-cal-date {
+  color: var(--mc-accent);
+  font-weight: 600;
+}
+.mini-cal-date {
+  font-size: 11px;
+  line-height: 14px;
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+}
+
+/* 事件圆点 */
+.mini-cal-dots {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  cursor: pointer;
+}
+.mini-cal-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+.mini-cal-more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--mc-more-bg, rgba(127, 127, 127, 0.25));
+  color: var(--mc-more-text, #888);
+  font-size: 9px;
+  line-height: 1;
+  font-weight: 600;
+}
+
+/* 卡片标题中的事件计数圆形徽标 */
+.count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* 事件列表中结构类型标签 */
+.struct-tag {
+  display: inline-flex;
+  align-items: center;
+  height: 16px;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: var(--mc-accent-bg, rgba(96, 165, 250, 0.16));
+  color: var(--mc-accent, #93c5fd);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
 }

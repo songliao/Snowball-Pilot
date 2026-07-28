@@ -213,7 +213,11 @@ export default function PositionForm({ readOnly = false, bare = false }: { readO
           annual_fee_pct: Number(values.annual_fee_pct || 0) / 100,
           income_dividend_pct: Number(values.income_dividend_pct || 0) / 100,
           coupon_dates: JSON.stringify(dividendDates),
-          coupon_received: JSON.stringify(parseStringList(values.coupon_received)),
+          coupon_received: JSON.stringify(
+            values.coupon_received
+              ? values.coupon_received.split('\n').map((s: string) => s.trim()).filter(Boolean)
+              : []
+          ),
           coupon_payment_dates: JSON.stringify(parseDateList(values.coupon_payment_dates)),
           is_ki: values.is_ki ? 1 : 0,
           termination_date: values.termination_date ? values.termination_date.format('YYYY-MM-DD') : '',
@@ -486,7 +490,7 @@ export default function PositionForm({ readOnly = false, bare = false }: { readO
                   <Form.Item
                     label="派息支付日"
                     name="coupon_payment_dates"
-                    tooltip="可一次性输入多个日期，用空格、逗号或换行分隔"
+                    tooltip="记录派息时自动累计的派息支付日（簿记合约时为空），也可手动补充；可一次性输入多个日期，用空格、逗号或换行分隔"
                   >
                     <Input.TextArea rows={2} autoSize={{ minRows: 2, maxRows: 5 }} placeholder="如：2024-03-20 2024-04-20" />
                   </Form.Item>
@@ -495,11 +499,11 @@ export default function PositionForm({ readOnly = false, bare = false }: { readO
                 {isEdit && (
                 <Col xs={24}>
                   <Form.Item
-                    label="已派息记录"
+                    label="已派息金额"
                     name="coupon_received"
-                    tooltip="已实际支付的派息记录（数组，用空格、逗号或换行分隔）"
+                    tooltip="已实际支付的派息金额，与「派息支付日」按行一一对应，每行一条（如 1500.00）"
                   >
-                    <Input.TextArea rows={2} autoSize={{ minRows: 2, maxRows: 5 }} placeholder="如：2024-03-20 15%、2024-04-20 15%" />
+                    <Input.TextArea rows={2} autoSize={{ minRows: 2, maxRows: 5 }} placeholder={'如：1500.00\n1500.00'} />
                   </Form.Item>
                 </Col>
                 )}

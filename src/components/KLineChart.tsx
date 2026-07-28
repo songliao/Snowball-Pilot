@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import ReactECharts from 'echarts-for-react'
 import { Segmented, Spin, Empty, InputNumber, Button, Space, Tag } from 'antd'
+import { useThemeStore } from '../stores/themeStore'
 
 interface KLinePoint {
   date: string
@@ -36,6 +37,7 @@ function computeMA(closes: number[], period: number): (number | null)[] {
 }
 
 export default function KLineChart({ code }: { code: string }) {
+  const isDark = useThemeStore((s) => s.mode === 'dark')
   const [days, setDays] = useState(365)
   const [loading, setLoading] = useState(false)
   const [data, setData] = useState<KLinePoint[]>([])
@@ -249,7 +251,7 @@ export default function KLineChart({ code }: { code: string }) {
       />
       <ReactECharts
         option={option}
-        style={{ height: 420, background: theme === 'dark' ? '#18181b' : '#ffffff' }}
+        style={{ height: 420, background: isDark ? '#18181b' : '#ffffff' }}
         opts={{ renderer: 'svg' }}
         notMerge
       />

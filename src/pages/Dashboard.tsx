@@ -4,7 +4,8 @@ import {
   DollarOutlined,
   SafetyCertificateOutlined,
   SnippetsOutlined,
-  ReloadOutlined
+  ReloadOutlined,
+  TrophyOutlined
 } from '@ant-design/icons'
 import { usePositionStore } from '../stores/positionStore'
 import { formatMoney } from '../utils/format'
@@ -53,7 +54,28 @@ export default function Dashboard() {
   const activeContracts = activePositions.length
   const totalContracts = positions.length
 
-  // 手动获取所有指数行情（不做自动刷新，避免行情 API 被封）
+  // 已了结收益 = 雪球了结收益 + 凤凰派息收益 + 凤凰了结收益
+  const isSettled = (p: PositionData) => p.status === 'knocked_out' || p.status === 'matured'
+  const parseCouponReceived = (raw?: string): number[] => {
+    if (!raw) return []
+    try {
+      const arr = JSON.parse(raw)
+      if (Array.isArray(arr)) return arr.map((x) => Number(x) || 0)
+    } catch { /* ignore */ }
+    return []
+  }
+  const snowballSettledGain = positions
+    .filter((p) => p.structure_type === 'snowball' && isSettled(p))
+    .reduce((s, p) => s + (p.termination_payoff || 0), 0)
+  const phoenixSettledGain = positions
+    .filter((p) => p.structure_type === 'phoenix' && isSettled(p))
+    .reduce((s, p) => s + (p.termination_payoff || 0), 0)
+  const phoenixCouponGain = positions
+    .filter((p) => p.structure_type === 'phoenix')
+    .reduce((s, p) => s + parseCouponReceived(p.coupon_received).reduce((a, x) => a + x, 0), 0)
+  const totalSettledGain = snowballSettledGain + phoenixSettledGain + phoenixCouponGain
+
+  // 手动获取所有指数行情（点击刷新按钮才会调用实时行情接口）
   const fetchQuotes = useCallback(async () => {
     if (watchCodes.length === 0) {
       setQuotes({})
@@ -72,10 +94,55 @@ export default function Dashboard() {
     }
   }, [watchCodes])
 
-  // 读取自选列表后拉取行情；手动刷新也基于当前自选列表
+  // 打开页面时仅读取系统已存储的行情快照，不调用实时行情接口
+  const loadStoredQuotes = useCallback(async () => {
+    if (watchCodes.length === 0) {
+      setQuotes({})
+      return
+    }
+    setQuoteLoading(true)
+    try {
+      const codesInfo = await window.api.prices.getCodes()
+      const prevMap: Record<string, number> = {}
+      codesInfo.forEach((c) => {
+        if (prevMap[c.code] == null && c.prevPrice != null) prevMap[c.code] = c.prevPrice
+      })
+      const results: Record<string, IndexQuoteData> = {}
+      await Promise.all(
+        watchCodes.map(async (code) => {
+          const rec = await window.api.prices.getLatest(code)
+          if (!rec) return
+          const prevClose = prevMap[code] ?? rec.price
+          const change = rec.price - prevClose
+          const changePct = prevClose ? (change / prevClose) * 100 : 0
+          results[code] = {
+            code,
+            name: code,
+            price: rec.price,
+            change,
+            changePct,
+            open: rec.open ?? rec.price,
+            high: rec.high ?? rec.price,
+            low: rec.low ?? rec.price,
+            prevClose,
+            volume: rec.volume ?? 0,
+            amount: 0,
+            updateTime: rec.date || ''
+          }
+        })
+      )
+      setQuotes(results)
+    } catch {
+      // 无存储数据时保持为空
+    } finally {
+      setQuoteLoading(false)
+    }
+  }, [watchCodes])
+
+  // 打开页面读取系统存储的行情快照；实时刷新需手动点击
   useEffect(() => {
-    fetchQuotes()
-  }, [fetchQuotes])
+    loadStoredQuotes()
+  }, [loadStoredQuotes])
 
   return (
     <div>
@@ -123,6 +190,23 @@ export default function Dashboard() {
                 </div>
               </div>
               <div className="stat-icon"><SnippetsOutlined /></div>
+            </div>
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card className="stat-card glass-card" variant="borderless" style={{ height: '100%' }}>
+            <div className="stat-card-inner">
+              <div>
+                <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 4 }}>已了结收益</div>
+                <div style={{ fontSize: 20, fontWeight: 600 }}>
+                  {formatMoney(totalSettledGain)}
+                </div>
+                <div style={{ fontSize: 11, opacity: 0.45, fontWeight: 400, marginTop: 4, lineHeight: 1.5 }}>
+                  雪球了结 {formatMoney(snowballSettledGain)}<br />
+                  凤凰派息 {formatMoney(phoenixCouponGain)} · 凤凰了结 {formatMoney(phoenixSettledGain)}
+                </div>
+              </div>
+              <div className="stat-icon"><TrophyOutlined /></div>
             </div>
           </Card>
         </Col>
