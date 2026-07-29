@@ -167,6 +167,11 @@ const api = {
     check: (): Promise<string[]> => ipcRenderer.invoke('notification:check')
   },
 
+  // 关于窗口
+  app: {
+    about: (): Promise<boolean> => ipcRenderer.invoke('app:about')
+  },
+
   // 指数历史数据
   indexHistory: {
     backfill: (days?: number, clean?: boolean): Promise<{ code: string; saved: number }[]> =>

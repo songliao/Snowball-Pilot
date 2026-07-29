@@ -26,8 +26,14 @@ html, body {
 }
 
 /* ===== Titlebar Drag ===== */
+/* 仅 macOS 无边框窗口需要自定义拖拽区；Windows/Linux 使用系统边框，
+   关闭拖拽区以免整块区域吞掉鼠标点击（如登录页输入框、按钮无法点击） */
 .titlebar-drag {
   -webkit-app-region: drag;
+}
+
+html:not([data-platform='mac']) .titlebar-drag {
+  -webkit-app-region: no-drag;
 }
 
 .theme-toggle-btn:hover {

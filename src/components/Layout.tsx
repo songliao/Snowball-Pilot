@@ -9,7 +9,8 @@ import {
   PlusOutlined,
   FundOutlined,
   CalendarOutlined,
-  NotificationOutlined
+  NotificationOutlined,
+  InfoCircleOutlined
 } from '@ant-design/icons'
 import snowPng from '../assets/snow.png'
 import { useThemeStore } from '../stores/themeStore'
@@ -275,6 +276,26 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               >
                 <NotificationOutlined />
                 <span>合约预警设置</span>
+              </div>
+
+              <div
+                onClick={() => { setSettingsOpen(false); window.api.app.about() }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '8px 4px',
+                  cursor: 'pointer',
+                  borderRadius: 6,
+                  fontSize: 13,
+                  color: isDark ? 'rgba(244,244,245,0.82)' : 'rgba(30,30,34,0.78)',
+                  transition: 'background 0.2s'
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+              >
+                <InfoCircleOutlined />
+                <span>关于 Snowball Pilot</span>
               </div>
 
               <Divider style={{ margin: '8px 0' }} />

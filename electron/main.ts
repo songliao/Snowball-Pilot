@@ -16,61 +16,29 @@ let mainWindow: BrowserWindow | null = null
 function buildAppMenu(): void {
   const isMac = process.platform === 'darwin'
 
+  // 仅 macOS 保留应用菜单（应用名 + 关于）。Windows/Linux 不设置自定义菜单，
+  // 避免显示「编辑 / 视图 / 窗口」等默认菜单项；关于入口改由侧边栏「设置」提供。
+  if (!isMac) {
+    Menu.setApplicationMenu(null as unknown as Electron.Menu)
+    return
+  }
+
   const template: Electron.MenuItemConstructorOptions[] = [
-    ...(isMac
-      ? [
-          {
-            label: app.getName(),
-            submenu: [
-              {
-                label: '关于 Snowball Pilot',
-                click: () => showAboutWindow()
-              },
-              { type: 'separator' },
-              { role: 'services' as const },
-              { type: 'separator' },
-              { role: 'hide' as const },
-              { role: 'hideOthers' as const },
-              { role: 'unhide' as const },
-              { type: 'separator' },
-              { role: 'quit' as const }
-            ]
-          }
-        ]
-      : []),
     {
-      label: '编辑',
+      label: app.getName(),
       submenu: [
-        { role: 'undo' },
-        { role: 'redo' },
+        {
+          label: '关于 Snowball Pilot',
+          click: () => showAboutWindow()
+        },
         { type: 'separator' },
-        { role: 'cut' },
-        { role: 'copy' },
-        { role: 'paste' },
-        { role: 'selectAll' }
-      ]
-    },
-    {
-      label: '视图',
-      submenu: [
-        { role: 'reload' },
-        { role: 'toggleDevTools' },
+        { role: 'services' as const },
         { type: 'separator' },
-        { role: 'resetZoom' },
-        { role: 'zoomIn' },
-        { role: 'zoomOut' },
+        { role: 'hide' as const },
+        { role: 'hideOthers' as const },
+        { role: 'unhide' as const },
         { type: 'separator' },
-        { role: 'togglefullscreen' }
-      ]
-    },
-    {
-      label: '窗口',
-      submenu: [
-        { role: 'minimize' },
-        { role: 'zoom' },
-        ...(isMac
-          ? [{ type: 'separator' }, { role: 'front' }]
-          : [{ role: 'close' }])
+        { role: 'quit' as const }
       ]
     }
   ]
@@ -123,7 +91,9 @@ function showAboutWindow(): void {
       show: false,
       backgroundColor: bg,
       parent: mainWindow ?? undefined,
-      modal: true,
+      // 不要 modal：modal 下 Windows 点击主窗口时关于窗口不会可靠失焦，导致 blur 关闭失效；
+      // 改为普通置顶窗口，点击别处即可触发 blur 关闭
+      modal: false,
       webPreferences: {
         sandbox: true,
         contextIsolation: true,
@@ -169,13 +139,39 @@ function showAboutWindow(): void {
 </html>`
 
     aboutWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html))
-    aboutWin.once('ready-to-show', () => aboutWin.show())
-    // 点击窗口任意位置关闭
-    aboutWin.on('blur', () => aboutWin.close())
+    aboutWin.once('ready-to-show', () => {
+      aboutWin.show()
+      // 延迟绑定 blur，避免 show 过程中窗口自身先 focus 再被父窗口抢占焦点
+      // 而误触发立即关闭
+      setTimeout(() => {
+        aboutWin.on('blur', closeAbout)
+      }, 150)
+    })
+
+    let closed = false
+    const closeAbout = () => {
+      if (closed) return
+      closed = true
+      aboutWin.close()
+    }
+
+    // Esc 关闭
+    aboutWin.webContents.on('before-input-event', (_e, input) => {
+      if (input.key === 'Escape') closeAbout()
+    })
   })
 }
 
 function createWindow(): void {
+  // 开发模式下显式指定图标，避免 Windows/macOS 回退到 Electron 默认图标
+  const appIcon = app.isPackaged
+    ? undefined
+    : join(__dirname, '../../resources/icon.png')
+
+  // macOS 使用无边框 + 内嵌红绿灯（保留 macOS 原生窗口控制风格）；
+  // Windows/Linux 使用有边框窗口，由系统提供标准的最小化/最大化/关闭按钮
+  const isMac = process.platform === 'darwin'
+
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -183,9 +179,10 @@ function createWindow(): void {
     minHeight: 680,
     show: false,
     title: 'Snowball Pilot',
-    frame: false,
-    titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 16, y: 18 },
+    icon: appIcon,
+    frame: isMac ? false : true,
+    titleBarStyle: isMac ? 'hiddenInset' : undefined,
+    trafficLightPosition: isMac ? { x: 16, y: 18 } : undefined,
     backgroundColor: '#f5f5f4',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -251,6 +248,12 @@ app.whenReady().then(async () => {
   // 通知检查
   ipcMain.handle('notification:check', async () => {
     return await checkAndNotify(mainWindow)
+  })
+
+  // 关于窗口（侧边栏「设置 → 关于」入口调用，跨平台统一）
+  ipcMain.handle('app:about', async () => {
+    showAboutWindow()
+    return true
   })
 
   // 指数历史数据

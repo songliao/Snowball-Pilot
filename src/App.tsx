@@ -28,6 +28,17 @@ export default function App() {
     document.documentElement.setAttribute('data-theme', mode)
   }, [isDark, mode])
 
+  // 暴露运行平台到根元素：macOS 使用无边框 + 内嵌红绿灯，需保留自定义拖拽区；
+  // Windows/Linux 使用系统边框与标准窗口控制按钮，关闭拖拽区以免吞掉点击
+  useEffect(() => {
+    const platform = /Mac|iPod|iPhone|iPad/.test(navigator.platform)
+      ? 'mac'
+      : /Win/.test(navigator.platform)
+        ? 'win'
+        : 'linux'
+    document.documentElement.setAttribute('data-platform', platform)
+  }, [])
+
   return (
     <ConfigProvider
       locale={zhCN}
