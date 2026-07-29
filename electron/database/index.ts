@@ -21,10 +21,21 @@ export function saveDatabase(): void {
   }
 }
 
+// sql.js 运行需要加载 sql-wasm.wasm。开发模式下从 node_modules 加载；
+// 打包后 node_modules 已被排除，wasm 通过 electron-builder 的 extraResources
+// 拷贝到 resources 目录，这里统一从 resourcesPath 定位。
+function getSqlWasmLocateFile(): (file: string) => string {
+  if (app.isPackaged) {
+    return (file: string) => join(process.resourcesPath, file)
+  }
+  // 开发模式：从项目根下的 node_modules/sql.js/dist 加载
+  return (file: string) => join(app.getAppPath(), 'node_modules', 'sql.js', 'dist', file)
+}
+
 export async function initDatabase(): Promise<void> {
   dbPath = join(app.getPath('userData'), 'snowball-pilot.db')
 
-  const SQL = await initSqlJs()
+  const SQL = await initSqlJs({ locateFile: getSqlWasmLocateFile() })
 
   if (existsSync(dbPath)) {
     const fileBuffer = readFileSync(dbPath)

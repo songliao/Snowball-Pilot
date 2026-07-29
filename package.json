@@ -1,7 +1,7 @@
 {
   "name": "snowball-pilot",
   "version": "1.0.0",
-  "description": "雪球持仓管理桌面应用 - 场外衍生品投资持仓管理工具",
+  "description": "Snowball Pilot - OTC derivatives position management desktop app",
   "main": "./out/main/index.js",
   "author": "Snowball Pilot",
   "license": "MIT",

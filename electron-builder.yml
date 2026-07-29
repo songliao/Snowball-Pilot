@@ -6,6 +6,10 @@ directories:
 extraResources:
   - from: resources/icon.png
     to: icon.png
+  # sql.js 运行时需要加载 wasm 文件，打包后 node_modules 已被排除，
+  # 必须显式把 wasm 拷贝到 resources 目录供主进程 locateFile 加载
+  - from: node_modules/sql.js/dist/sql-wasm.wasm
+    to: sql-wasm.wasm
 files:
   - out/**/*
   - "!node_modules/**/*"
