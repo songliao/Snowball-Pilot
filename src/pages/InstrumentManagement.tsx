@@ -405,6 +405,7 @@ export default function InstrumentManagement() {
         width={900}
         open={!!drawerCode}
         onClose={() => setDrawerCode(null)}
+        closeIcon={null}
         destroyOnClose
       >
         {drawerCode && <KLineChart code={drawerCode} />}
