@@ -9,14 +9,14 @@ import { useMarketStore } from '../stores/marketStore'
 import { formatMoney, formatPercent, formatDate, STATUS_MAP } from '../utils/format'
 import type { PositionData } from '../utils/calc'
 
-// 下一敲出观察日（今天之后的首个观察日，若都已过去则取最近一个）及其对应敲出障碍价格
+// 下一敲出观察日：今天及之后（含今天）最近的观察日；若都已过去则不显示，不取过去的日期
 function getNextKo(p: PositionData): { date: string | null; barrierPrice: number | null } {
   const dates: string[] = p.knock_out_dates ? JSON.parse(p.knock_out_dates) : []
   const barriers: number[] = p.knock_out_barriers ? JSON.parse(p.knock_out_barriers) : []
   if (!dates.length) return { date: null, barrierPrice: null }
   const today = dayjs().startOf('day')
-  let idx = dates.findIndex((d) => dayjs(d).startOf('day').isAfter(today))
-  if (idx < 0) idx = dates.length - 1
+  const idx = dates.findIndex((d) => !dayjs(d).startOf('day').isBefore(today))
+  if (idx < 0) return { date: null, barrierPrice: null }
   const barrierPct = barriers[idx]
   const barrierPrice =
     barrierPct != null && p.initial_price ? p.initial_price * (barrierPct / 100) : null
@@ -64,8 +64,9 @@ export default function Positions() {
     const dates: string[] = p.coupon_dates ? JSON.parse(p.coupon_dates) : []
     if (!dates.length) return { date: null, barrierPrice: null }
     const today = dayjs().startOf('day')
-    let idx = dates.findIndex((d) => dayjs(d).startOf('day').isAfter(today))
-    if (idx < 0) idx = dates.length - 1
+    // 仅取今天及之后（含今天）的观察日；若都已过去则不显示，不取过去的日期
+    const idx = dates.findIndex((d) => !dayjs(d).startOf('day').isBefore(today))
+    if (idx < 0) return { date: null, barrierPrice: null }
     // coupon_barrier 存为小数（如 0.8 表示 80%）
     const barrierPrice =
       p.initial_price != null && p.coupon_barrier != null

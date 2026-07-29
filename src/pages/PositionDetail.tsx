@@ -72,12 +72,14 @@ export default function PositionDetail() {
   const koDates = pos.knock_out_dates ? (JSON.parse(pos.knock_out_dates) as string[]) : []
   const koBarriers = pos.knock_out_barriers ? (JSON.parse(pos.knock_out_barriers) as number[]) : []
   const koCoupons = pos.knock_out_coupons ? (JSON.parse(pos.knock_out_coupons) as number[]) : []
-  // 最近（离今天最近）敲出观察日，及其对应障碍价与票息
-  const today = dayjs()
+  // 今天及之后（含今天）最近的敲出观察日，及其对应障碍价与票息；过去的观察日不计入
+  const today = dayjs().startOf('day')
   let nearestKoIdx = -1
   let nearestKoDiff = Infinity
   koDates.forEach((d, i) => {
-    const diff = Math.abs(dayjs(d).diff(today, 'day'))
+    const date = dayjs(d).startOf('day')
+    if (date.isBefore(today)) return
+    const diff = date.diff(today, 'day')
     if (diff < nearestKoDiff) {
       nearestKoDiff = diff
       nearestKoIdx = i
@@ -126,7 +128,9 @@ export default function PositionDetail() {
   let nearestCpnIdx = -1
   let nearestCpnDiff = Infinity
   couponDates.forEach((d, i) => {
-    const diff = Math.abs(dayjs(d).diff(today, 'day'))
+    const date = dayjs(d).startOf('day')
+    if (date.isBefore(today)) return
+    const diff = date.diff(today, 'day')
     if (diff < nearestCpnDiff) {
       nearestCpnDiff = diff
       nearestCpnIdx = i

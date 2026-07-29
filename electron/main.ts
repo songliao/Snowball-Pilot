@@ -133,7 +133,7 @@ function showAboutWindow(): void {
 <body>
   <img src="${logoDataUri}" alt="logo" />
   <h1>Snowball Pilot</h1>
-  <div class="ver">版本 1.0.0</div>
+  <div class="ver">版本 ${app.getVersion()}</div>
   <div class="desc">
     场外衍生品投资持仓管理工具
     <div class="desc-en">for my beloved</div>

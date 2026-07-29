@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import type { CSSProperties } from 'react'
 import { Card, Table, Button, Popconfirm, Drawer, Space, Empty, message, Modal, Form, Input, Tooltip } from 'antd'
 import {
@@ -26,6 +26,21 @@ interface InstrumentRow {
 interface HistoryRow {
   date: string
   price: number
+}
+
+// 解析 #rrggbb 为 [r, g, b]
+const hexToRgb = (hex: string): [number, number, number] => [
+  parseInt(hex.slice(1, 3), 16),
+  parseInt(hex.slice(3, 5), 16),
+  parseInt(hex.slice(5, 7), 16)
+]
+
+// 按比例 t (0~1) 在两个 hex 颜色间插值，返回 #rrggbb
+const mixHex = (from: string, to: string, t: number): string => {
+  const [r1, g1, b1] = hexToRgb(from)
+  const [r2, g2, b2] = hexToRgb(to)
+  const c = (a: number, b: number) => Math.round(a + (b - a) * t)
+  return `#${[c(r1, r2), c(g1, g2), c(b1, b2)].map((v) => v.toString(16).padStart(2, '0')).join('')}`
 }
 
 export default function InstrumentManagement() {
@@ -81,6 +96,52 @@ export default function InstrumentManagement() {
     loadData()
     loadWatchlist()
   }, [loadData, loadWatchlist])
+
+  // K线抽屉打开时，右上角原生窗口控件会叠在抽屉面板上。
+  // 原生 titleBarOverlay 不支持 CSS 过渡，直接切色会显得突兀，
+  // 因此用 rAF 在页面底色与抽屉面板色之间做 300ms 缓动插值（与 antd Drawer 动画时长一致）。
+  const overlayAnimRef = useRef(0)
+  const prevOpenRef = useRef(false)
+  useEffect(() => {
+    const open = !!drawerCode
+    const panelBg = isDark ? '#1f1f23' : '#ffffff'
+    const pageBg = isDark ? '#09090b' : '#f5f5f4'
+    const symbolColor = isDark ? '#e4e4e7' : '#333333'
+
+    cancelAnimationFrame(overlayAnimRef.current)
+
+    // 初次挂载或仅主题变化（开合状态未变）：直接设为目标色，不做动画
+    if (open === prevOpenRef.current) {
+      window.api.app.updateTitlebarOverlay(open ? panelBg : pageBg, symbolColor)
+      return () => cancelAnimationFrame(overlayAnimRef.current)
+    }
+    prevOpenRef.current = open
+
+    const from = open ? pageBg : panelBg
+    const to = open ? panelBg : pageBg
+    const duration = 300
+    const start = performance.now()
+    const step = (now: number) => {
+      const t = Math.min((now - start) / duration, 1)
+      // easeInOutCubic，与 antd Drawer 的缓动观感接近
+      const eased = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+      window.api.app.updateTitlebarOverlay(mixHex(from, to, eased), symbolColor)
+      if (t < 1) {
+        overlayAnimRef.current = requestAnimationFrame(step)
+      }
+    }
+    overlayAnimRef.current = requestAnimationFrame(step)
+
+    return () => cancelAnimationFrame(overlayAnimRef.current)
+  }, [drawerCode, isDark])
+
+  // 离开页面（组件卸载）时还原为页面底色，避免残留抽屉面板色
+  useEffect(() => {
+    return () => {
+      const dark = useThemeStore.getState().mode === 'dark'
+      window.api.app.updateTitlebarOverlay(dark ? '#09090b' : '#f5f5f4', dark ? '#e4e4e7' : '#333333')
+    }
+  }, [])
 
   const openHistory = (code: string) => {
     setDrawerCode(code)
