@@ -242,7 +242,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               }}
             >
               <div style={{ padding: '4px 4px 8px' }}>
-                <div style={{ fontSize: 12, opacity: 0.5, marginBottom: 8 }}>主题</div>
+                <div style={{ fontSize: 12, color: isDark ? 'rgba(244,244,245,0.72)' : 'rgba(30,30,34,0.5)', marginBottom: 8 }}>主题</div>
                 <Segmented
                   block
                   size="small"

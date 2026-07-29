@@ -320,8 +320,7 @@ export default function InstrumentManagement() {
         <Space align="center" style={{ marginTop: -3 }}>
           <Button
             type="primary"
-            className="soft-primary-text"
-            style={{ height: 31, fontWeight: 500 }}
+            style={{ height: 31 }}
             icon={<PlusOutlined />}
             onClick={() => setAddOpen(true)}
           >

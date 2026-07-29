@@ -88,6 +88,9 @@ function showAboutWindow(): void {
       alwaysOnTop: true,
       center: true,
       frame: false,
+      // 禁用全屏能力：父窗口（主窗口）处于原生全屏时，子窗口会被系统带入同一
+      // 全屏 Space 并被拉伸为全屏，设置 fullscreenable:false 可让其保持固定尺寸叠加显示
+      fullscreenable: false,
       show: false,
       backgroundColor: bg,
       parent: mainWindow ?? undefined,

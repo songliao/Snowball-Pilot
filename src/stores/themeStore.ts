@@ -21,7 +21,7 @@ function resolveMode(pref: ThemePreference): ResolvedMode {
 function getInitialPreference(): ThemePreference {
   const saved = localStorage.getItem('theme-preference')
   if (saved === 'system' || saved === 'light' || saved === 'dark') return saved
-  return 'system'
+  return 'dark'
 }
 
 // 监听系统主题变化
