@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import dayjs, { type Dayjs } from 'dayjs'
 import { usePositionStore } from '../stores/positionStore'
 import { useThemeStore } from '../stores/themeStore'
+import { useCalendarStore } from '../stores/calendarStore'
 import type { PositionData } from '../utils/calc'
 
 type EventType = 'ko' | 'coupon'
@@ -157,8 +158,14 @@ export default function EventCalendar() {
   const { positions, fetchAll } = usePositionStore()
   const isDark = useThemeStore((s) => s.mode) === 'dark'
   const navigate = useNavigate()
-  const [curMonth, setCurMonth] = useState<Dayjs>(dayjs())
-  const [selectedDate, setSelectedDate] = useState<Dayjs | null>(null)
+  // 视图状态从 store 读取，避免跳转持仓详情再返回时重置为初始月
+  // 选择器只取稳定字符串，Dayjs 在渲染体内转换，避免每次返回新对象导致重复渲染
+  const curMonthStr = useCalendarStore((s) => s.curMonth)
+  const curMonth = dayjs(curMonthStr)
+  const selectedDateStr = useCalendarStore((s) => s.selectedDate)
+  const selectedDate = selectedDateStr ? dayjs(selectedDateStr) : null
+  const setCurMonth = useCalendarStore((s) => s.setCurMonth)
+  const setSelectedDate = useCalendarStore((s) => s.setSelectedDate)
 
   useEffect(() => {
     fetchAll()

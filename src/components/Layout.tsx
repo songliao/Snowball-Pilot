@@ -283,26 +283,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               <Divider style={{ margin: '8px 0' }} />
 
               <div
-                onClick={() => { setSettingsOpen(false); useAuthStore.getState().logout() }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '8px 4px',
-                  cursor: 'pointer',
-                  borderRadius: 6,
-                  fontSize: 13,
-                  color: '#ef4444',
-                  transition: 'background 0.2s'
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(239,68,68,0.08)')}
-                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-              >
-                <LogoutOutlined />
-                <span>退出登录</span>
-              </div>
-
-              <div
                 onClick={() => { setSettingsOpen(false); window.api.app.about() }}
                 style={{
                   display: 'flex',
@@ -323,17 +303,24 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               </div>
 
               <div
+                onClick={() => { setSettingsOpen(false); useAuthStore.getState().logout() }}
                 style={{
-                  position: 'absolute',
-                  bottom: -5,
-                  left: 28,
-                  width: 0,
-                  height: 0,
-                  borderLeft: '5px solid transparent',
-                  borderRight: '5px solid transparent',
-                  borderTop: `6px solid ${isDark ? '#1c1c1f' : '#ffffff'}`
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '8px 4px',
+                  cursor: 'pointer',
+                  borderRadius: 6,
+                  fontSize: 13,
+                  color: '#ef4444',
+                  transition: 'background 0.2s'
                 }}
-              />
+                onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(239,68,68,0.08)')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+              >
+                <LogoutOutlined />
+                <span>退出登录</span>
+              </div>
             </div>
           )}
         </div>
