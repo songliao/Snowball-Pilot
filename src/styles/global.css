@@ -218,6 +218,10 @@ html, body {
 .bookkeeping-card {
   max-width: 725px;
 }
+/* 详情页翻面只读：撑满翻面容器，并与玻璃卡片外框一致 */
+.bookkeeping-card--bare {
+  max-width: 100%;
+}
 
 /* 信息组标题靠左（无线）：卡片左右内边距移到表单上，标题用负边距贴卡片左边缘 */
 .bookkeeping-card .ant-card-body {
@@ -652,6 +656,11 @@ html, body {
   border-color: rgba(6, 182, 212, 0.22);
   color: #0e7490;
 }
+.nav-icon-circle--diagram {
+  background: rgba(56, 189, 248, 0.1);
+  border-color: rgba(56, 189, 248, 0.24);
+  color: #0284c7;
+}
 [data-theme='dark'] .nav-icon-circle--ki {
   background: rgba(251, 146, 60, 0.1);
   border-color: rgba(251, 146, 60, 0.28);
@@ -671,6 +680,11 @@ html, body {
   background: rgba(45, 212, 191, 0.1);
   border-color: rgba(45, 212, 191, 0.28);
   color: #5eead4;
+}
+[data-theme='dark'] .nav-icon-circle--diagram {
+  background: rgba(56, 189, 248, 0.14);
+  border-color: rgba(56, 189, 248, 0.3);
+  color: #7dd3fc;
 }
 /* 在按钮内收紧尺寸与间距 */
 .action-btn.ant-btn .nav-icon-circle {
@@ -996,13 +1010,55 @@ html, body {
 .struct-tag {
   display: inline-flex;
   align-items: center;
-  height: 16px;
-  padding: 0 6px;
-  border-radius: 8px;
+  gap: 4px;
+  height: 18px;
+  padding: 0 8px;
+  border-radius: 9px;
+  border: 1px solid currentColor;
   background: var(--mc-accent-bg, rgba(96, 165, 250, 0.16));
   color: var(--mc-accent, #93c5fd);
   font-size: 11px;
   font-weight: 600;
   line-height: 1;
   white-space: nowrap;
+}
+
+/* ===== 持仓详情卡片翻转：正面详情 / 背面实时点位图示 ===== */
+.flip-card {
+  position: relative;
+  perspective: 1400px;
+}
+.flip-card-inner {
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 0.55s cubic-bezier(0.4, 0.2, 0.2, 1);
+}
+.flip-card.flipped .flip-card-inner {
+  transform: rotateY(180deg);
+}
+.flip-front,
+.flip-back {
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+/* 默认（未翻转）：正面占布局，背面绝对定位不占高 */
+.flip-front {
+  position: relative;
+}
+.flip-back {
+  transform: rotateY(180deg);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+}
+/* 翻转后：正面脱离文档流，背面占布局，避免大段留白 */
+.flip-card.flipped .flip-front {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+}
+.flip-card.flipped .flip-back {
+  position: relative;
 }

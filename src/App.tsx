@@ -10,7 +10,7 @@ import Dashboard from './pages/Dashboard'
 import Positions from './pages/Positions'
 import PositionForm from './pages/PositionForm'
 import PositionDetail from './pages/PositionDetail'
-import Analysis from './pages/Analysis'
+import AlertSettings from './pages/AlertSettings'
 
 import InstrumentManagement from './pages/InstrumentManagement'
 import EventCalendar from './pages/EventCalendar'
@@ -156,9 +156,9 @@ export default function App() {
                 <Route path="/positions/new" element={<PositionForm />} />
                 <Route path="/positions/:id/edit" element={<PositionForm />} />
                 <Route path="/positions/:id" element={<PositionDetail />} />
-                <Route path="/analysis" element={<Analysis />} />
                 <Route path="/instruments" element={<InstrumentManagement />} />
                 <Route path="/events" element={<EventCalendar />} />
+                <Route path="/settings/alerts" element={<AlertSettings />} />
               </Routes>
             </AppLayout>
           </HashRouter>

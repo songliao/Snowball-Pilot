@@ -6,7 +6,7 @@ import {
 import {
   ArrowLeftOutlined, EditOutlined, SyncOutlined,
   WarningOutlined, DollarOutlined, ClockCircleOutlined, RollbackOutlined,
-  PlusOutlined, GiftOutlined
+  PlusOutlined, GiftOutlined, BarChartOutlined, ProfileOutlined
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { usePositionStore } from '../stores/positionStore'
@@ -14,6 +14,7 @@ import { useMarketStore } from '../stores/marketStore'
 import { computeKnockOutProfit } from '../utils/calc'
 import { formatDate, STATUS_MAP } from '../utils/format'
 import PositionForm from './PositionForm'
+import PositionDiagram from '../components/PositionDiagram'
 
 function parseJsonArray<T>(s: string | null | undefined): T[] {
   if (!s) return []
@@ -33,6 +34,7 @@ export default function PositionDetail() {
   const { latestPrices, prices, fetchLatestPrice, fetchRemotePrice, fetchPriceHistory } = useMarketStore()
   const [kiModalOpen, setKiModalOpen] = useState(false)
   const [kiDate, setKiDate] = useState<dayjs.Dayjs | null>(dayjs())
+  const [flipped, setFlipped] = useState(false)
   const [endModalOpen, setEndModalOpen] = useState(false)
   const [endAction, setEndAction] = useState<'knocked_out' | 'matured'>('knocked_out')
   const [endDate, setEndDate] = useState<dayjs.Dayjs | null>(dayjs())
@@ -172,7 +174,13 @@ export default function PositionDetail() {
       ? (kiBarrierPrice / currentPrice - 1) * 100
       : null
   // 指标卡片列宽：按卡片数铺满整行（雪球 3 张 lg=8，凤凰 4 张 lg=6），两行均无空隙
-  const metricColProps = isPhoenix ? { xs: 24, sm: 12, lg: 6 } : { xs: 24, sm: 12, lg: 8 }
+  const metricColProps = isPhoenix
+    ? { xs: 24, sm: 12, md: 8, lg: 6 }
+    : { xs: 24, sm: 12, lg: 8 }
+  // 图示卡片列宽：雪球(8列小卡)三张=24列满宽；凤凰(6列小卡)三张=18列
+  const diagramColProps = isPhoenix
+    ? { xs: 24, sm: 24, md: 18, lg: 18 }
+    : { xs: 24, sm: 24, md: 24, lg: 24 }
 
   const handleStatusChange = async (status: string, kiDateStr?: string) => {
     await updateStatus(
@@ -326,6 +334,13 @@ export default function PositionDetail() {
               标记敲出
             </Button>
           )}
+          <Button
+            className="action-btn"
+            icon={<span className="nav-icon-circle nav-icon-circle--diagram">{flipped ? <ProfileOutlined /> : <BarChartOutlined />}</span>}
+            onClick={() => setFlipped((v) => !v)}
+          >
+            {flipped ? '合约详情' : '点位图示'}
+          </Button>
           {(pos.status === 'active' || pos.status === 'knocked_in') && (
             <Button
               className="action-btn"
@@ -398,7 +413,7 @@ export default function PositionDetail() {
       </Row>
       <Row gutter={[16, 16]} align="stretch" style={{ marginBottom: 24, maxWidth: 1480, marginRight: 'auto' }}>
         <Col {...metricColProps}>
-          <Card className="stat-card content-card" variant="borderless" style={{ height: '100%' }}>
+          <Card className="stat-card glass-card" variant="borderless" style={{ height: '100%' }}>
             <div style={{ fontSize: 13, opacity: 0.55, marginBottom: 10, fontWeight: 500 }}>最近敲出观察</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 8px' }}>
               <div>
@@ -442,7 +457,7 @@ export default function PositionDetail() {
         {isPhoenix ? (
         <>
         <Col {...metricColProps}>
-          <Card className="stat-card content-card" variant="borderless" style={{ height: '100%' }}>
+          <Card className="stat-card glass-card" variant="borderless" style={{ height: '100%' }}>
             <div style={{ fontSize: 13, opacity: 0.55, marginBottom: 10, fontWeight: 500 }}>最近派息观察</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 8px' }}>
               <div>
@@ -484,7 +499,7 @@ export default function PositionDetail() {
           </Card>
         </Col>
         <Col {...metricColProps}>
-          <Card className="stat-card content-card" variant="borderless" style={{ height: '100%' }}>
+          <Card className="stat-card glass-card" variant="borderless" style={{ height: '100%' }}>
             <div style={{ fontSize: 13, opacity: 0.55, marginBottom: 10, fontWeight: 500 }}>预计派息收益</div>
             <div style={{ fontSize: 24, fontWeight: 700 }}>
               {couponNet != null
@@ -518,7 +533,7 @@ export default function PositionDetail() {
         </>
         ) : (
         <Col {...metricColProps}>
-          <Card className="stat-card content-card" variant="borderless" style={{ height: '100%' }}>
+          <Card className="stat-card glass-card" variant="borderless" style={{ height: '100%' }}>
             <div style={{ fontSize: 13, opacity: 0.55, marginBottom: 10, fontWeight: 500 }}>敲出收益估算</div>
             <div style={{ fontSize: 24, fontWeight: 700 }}>
               {koProfit != null
@@ -554,7 +569,7 @@ export default function PositionDetail() {
         )}
         {!pos.is_ki && (
         <Col {...metricColProps}>
-          <Card className="stat-card content-card" variant="borderless" style={{ height: '100%' }}>
+          <Card className="stat-card glass-card" variant="borderless" style={{ height: '100%' }}>
             <div style={{ fontSize: 13, opacity: 0.55, marginBottom: 10, fontWeight: 500 }}>
               <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 18, height: 18, marginRight: 6, borderRadius: '50%', background: '#ef4444', color: '#fff', fontSize: 11 }}>
                 <WarningOutlined />
@@ -613,7 +628,7 @@ export default function PositionDetail() {
       )}
 
       {(pos.status === 'knocked_out' || pos.status === 'matured') && (
-        <Card className="stat-card content-card" variant="borderless" style={{ marginBottom: 24 }}>
+        <Card className="stat-card glass-card" variant="borderless" style={{ marginBottom: 24 }}>
           <div style={{ fontSize: 13, opacity: 0.55, marginBottom: 10, fontWeight: 500 }}>
             {pos.status === 'knocked_out' ? '敲出了结' : '到期了结'}
           </div>
@@ -637,7 +652,20 @@ export default function PositionDetail() {
       )}
 
       {/* 结构信息（与录入版式一致，只读） */}
-      <PositionForm readOnly bare />
+      <Row gutter={[16, 16]} style={{ maxWidth: 1480, marginRight: 'auto', marginBottom: 24 }}>
+        <Col {...diagramColProps}>
+          <div className={`flip-card${flipped ? ' flipped' : ''}`}>
+            <div className="flip-card-inner">
+              <div className="flip-front">
+                <PositionForm readOnly bare />
+              </div>
+              <div className="flip-back">
+                <PositionDiagram pos={pos} currentPrice={currentPrice} />
+              </div>
+            </div>
+          </div>
+        </Col>
+      </Row>
 
       <Modal
         title="标记为已敲入"
@@ -717,6 +745,6 @@ export default function PositionDetail() {
           placeholder="实际派发金额"
         />
       </Modal>
-    </div>
-  )
+  </div>
+)
 }

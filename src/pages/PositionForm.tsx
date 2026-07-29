@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, type ReactNode } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import {
   Card, Form, Input, InputNumber, DatePicker, Select, Button, Row, Col,
-  Space, Typography, message, Tag, Tooltip, Checkbox
+  Space, Typography, message, Tag, Tooltip, Checkbox, theme
 } from 'antd'
 import {
   InfoCircleOutlined,
@@ -84,6 +84,7 @@ export default function PositionForm({ readOnly = false, bare = false }: { readO
   const koBarriersCount = parseNumberList(Form.useWatch('knock_out_barriers', form)).length
   const koCouponsCount = parseNumberList(Form.useWatch('knock_out_coupons', form)).length
   const couponDatesCount = parseDateList(Form.useWatch('coupon_dates', form)).length
+  const { token } = theme.useToken()
   const { create, update } = usePositionStore()
   const [underlyingOptions, setUnderlyingOptions] = useState<{ label: string; value: string }[]>([])
 
@@ -287,8 +288,11 @@ export default function PositionForm({ readOnly = false, bare = false }: { readO
 
   const label = isPhoenix ? '凤凰' : '雪球'
 
+  // bare（详情页翻面只读）时套用玻璃外框并撑满容器，与普通玻璃卡片风格一致
+  const cardClass = bare ? 'bookkeeping-card glass-card bookkeeping-card--bare' : 'bookkeeping-card'
+
   const formBody = (
-    <Card className="bookkeeping-card">
+    <Card className={cardClass}>
       <Form
         form={form}
         className="bookkeeping-form"
@@ -298,9 +302,9 @@ export default function PositionForm({ readOnly = false, bare = false }: { readO
             required ? (
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                 {label}
-                <Tooltip title="必填项">
-                  <InfoCircleOutlined style={{ color: 'rgba(0,0,0,0.35)', fontSize: 12 }} />
-                </Tooltip>
+                    <Tooltip title="必填项">
+                      <InfoCircleOutlined style={{ color: token.colorTextTertiary, fontSize: 12 }} />
+                    </Tooltip>
               </span>
             ) : (
               label

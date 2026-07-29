@@ -4,12 +4,12 @@ import { Layout, Menu, Popover, Segmented, Divider, Button } from 'antd'
 import {
   CompassOutlined,
   WalletOutlined,
-  PieChartOutlined,
   SettingOutlined,
   LogoutOutlined,
   PlusOutlined,
   FundOutlined,
-  CalendarOutlined
+  CalendarOutlined,
+  NotificationOutlined
 } from '@ant-design/icons'
 import snowPng from '../assets/snow.png'
 import { useThemeStore } from '../stores/themeStore'
@@ -25,7 +25,6 @@ const menuItems = [
   { key: '/events', icon: <span className="nav-icon-circle"><CalendarOutlined /></span>, label: '事件日历' },
   { key: '/positions', icon: <span className="nav-icon-circle"><WalletOutlined /></span>, label: '持仓管理' },
   { key: '/instruments', icon: <span className="nav-icon-circle"><FundOutlined /></span>, label: '标的管理' },
-  { key: '/analysis', icon: <span className="nav-icon-circle"><PieChartOutlined /></span>, label: '组合分析' }
 ]
 
 const STRUCTURE_TYPES = [
@@ -254,6 +253,28 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                   ]}
                   onChange={(val) => setPreference(val as 'light' | 'dark' | 'system')}
                 />
+              </div>
+
+              <Divider style={{ margin: '8px 0' }} />
+
+              <div
+                onClick={() => { setSettingsOpen(false); navigate('/settings/alerts') }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '8px 4px',
+                  cursor: 'pointer',
+                  borderRadius: 6,
+                  fontSize: 13,
+                  color: isDark ? 'rgba(244,244,245,0.82)' : 'rgba(30,30,34,0.78)',
+                  transition: 'background 0.2s'
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+              >
+                <NotificationOutlined />
+                <span>合约预警设置</span>
               </div>
 
               <Divider style={{ margin: '8px 0' }} />
