@@ -24,6 +24,8 @@ asar: true
 mac:
   category: public.app-category.finance
   icon: resources/icon.icns
+  # 本地打包跳过代码签名（未配置 Developer ID 证书时避免 signing 步骤失败）
+  identity: null
   target:
     - dmg
     - zip

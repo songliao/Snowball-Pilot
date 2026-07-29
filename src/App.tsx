@@ -1,9 +1,9 @@
 import { useEffect } from 'react'
 import { HashRouter, Routes, Route } from 'react-router-dom'
-import { ConfigProvider, theme as antTheme } from 'antd'
+import { ConfigProvider, theme as antTheme, message } from 'antd'
 import zhCN from 'antd/locale/zh_CN'
 import { useThemeStore } from './stores/themeStore'
-import { useAuthStore } from './stores/authStore'
+import { useAuthStore, SESSION_TTL } from './stores/authStore'
 import AppLayout from './components/Layout'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
@@ -19,6 +19,27 @@ export default function App() {
   const mode = useThemeStore((s) => s.mode)
   const isDark = mode === 'dark'
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+  const loginTime = useAuthStore((s) => s.loginTime)
+  const logout = useAuthStore((s) => s.logout)
+
+  // 登录有效期为 30 天：本地记录登录时间，后台定期检查是否已过期；
+  // 超过有效期则自动登出，要求重新登录（无需请求服务端校验）。
+  useEffect(() => {
+    if (!isAuthenticated || !loginTime) return
+    let cancelled = false
+    const checkExpiry = () => {
+      if (cancelled) return
+      if (Date.now() - loginTime > SESSION_TTL) {
+        logout()
+        message.warning('登录已过期（有效期 30 天），请重新登录')
+      }
+    }
+    const timer = setInterval(checkExpiry, 60 * 1000)
+    return () => {
+      cancelled = true
+      clearInterval(timer)
+    }
+  }, [isAuthenticated, loginTime, logout])
 
   useEffect(() => {
     const bg = isDark ? '#09090b' : '#f5f5f4'
