@@ -29,7 +29,14 @@ win:
   artifactName: ${productName}-${version}-setup.${ext}
 nsis:
   oneClick: false
+  perMachine: false
   allowToChangeInstallationDirectory: true
+# 说明：在当前 Win11 24H2 环境下，electron-builder 生成的 NSIS 自解压安装包
+# 启动时会出现「Not Responding / 无窗口」的兼容性问题（与 Defender 实时扫描
+# Temp 目录中未签名自解压进程有关）。应用本体（win-unpacked）本身完全正常。
+# 推荐交付方式：将 dist/win-unpacked 压缩为绿色版 zip 分发，用户解压到任意
+# 普通目录双击 Snowball Pilot.exe 即可运行。安装包（setup.exe）在其他环境或
+# 完成代码签名后可正常使用。
 linux:
   icon: resources/icon.png
   target:
