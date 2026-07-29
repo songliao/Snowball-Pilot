@@ -13,6 +13,9 @@ extraResources:
 files:
   - out/**/*
   - "!node_modules/**/*"
+  # sql.js 在主进程中被 external，运行时通过 require('sql.js') 加载，
+  # 因此必须把它的源码保留进 asar 的 node_modules，否则打包后找不到模块
+  - "node_modules/sql.js/**/*"
 asar: true
 mac:
   category: public.app-category.finance

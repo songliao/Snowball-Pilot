@@ -4,15 +4,17 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   main: {
-    // 不整体外部化 node_modules：sql.js 需要在打包后随主进程 bundle 一起加载，
-    // 否则会被 electron-builder 的 "!node_modules/**/*" 排除，导致运行时找不到模块。
-    // 这里显式只外部化 electron 运行环境相关模块，其余依赖（含 sql.js）强制打进 bundle。
+    // sql.js 是 UMD 模块，其内部会执行 `module.exports = initSqlJs`。若被打包进 bundle，
+    // 该作用域内 `module` 为 undefined，会抛 "Cannot set properties of undefined (setting 'exports')"，
+    // 导致 initDatabase 失败、窗口无法创建。因此必须把 sql.js 设为外部依赖（external），
+    // 让真实的 require('sql.js') 在 Node 环境下正常加载（UMD 的 module.exports 可用）。
+    // 运行时的 sql.js 通过 electron-builder 的 files 规则保留进 asar 的 node_modules。
     build: {
       rollupOptions: {
         input: {
           index: resolve(__dirname, 'electron/main.ts')
         },
-        external: ['electron', 'electron/*']
+        external: ['electron', 'electron/*', 'sql.js']
       },
       commonjsOptions: {
         // 确保 sql.js 等 CommonJS 依赖被正确打包
