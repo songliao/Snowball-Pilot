@@ -127,7 +127,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         }}
       >
         {/* 窗口拖拽区域 + 标题 */}
-        <div className="titlebar-drag" style={{ height: 64, flexShrink: 0, position: 'relative' }}>
+        <div className="titlebar-drag" style={{ height: 64, flexShrink: 0, position: 'relative', WebkitAppRegion: 'drag' } as React.CSSProperties}>
           <div style={{
             position: 'absolute',
             top: 54,
@@ -338,6 +338,19 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       </Sider>
 
       <Layout style={{ marginLeft: 224 }}>
+        {/* 内容区顶部拖拽条（Windows 隐藏标题栏模式下用于拖动窗口） */}
+        <div
+          className="titlebar-drag"
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 224,
+            right: 0,
+            height: 36,
+            zIndex: 50,
+            WebkitAppRegion: 'drag'
+          } as React.CSSProperties}
+        />
         <Content
           style={{
             padding: '16px 24px',

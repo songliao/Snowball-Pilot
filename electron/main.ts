@@ -168,9 +168,10 @@ function createWindow(): void {
     ? undefined
     : join(__dirname, '../../resources/icon.png')
 
-  // macOS 使用无边框 + 内嵌红绿灯（保留 macOS 原生窗口控制风格）；
-  // Windows/Linux 使用有边框窗口，由系统提供标准的最小化/最大化/关闭按钮
+  // macOS 使用无边框 + 内嵌红绿灯；
+  // Windows 使用隐藏标题栏 + 原生窗口控制按钮（支持 Win11 Snap Layouts）
   const isMac = process.platform === 'darwin'
+  const useDark = nativeTheme.shouldUseDarkColors
 
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -180,15 +181,33 @@ function createWindow(): void {
     show: false,
     title: 'Snowball Pilot',
     icon: appIcon,
-    frame: isMac ? false : true,
-    titleBarStyle: isMac ? 'hiddenInset' : undefined,
+    frame: true,
+    titleBarStyle: isMac ? 'hiddenInset' : 'hidden',
+    titleBarOverlay: isMac ? undefined : {
+      color: useDark ? '#09090b' : '#f5f5f4',
+      symbolColor: useDark ? '#e4e4e7' : '#333333',
+      height: 36
+    },
     trafficLightPosition: isMac ? { x: 16, y: 18 } : undefined,
-    backgroundColor: '#f5f5f4',
+    backgroundColor: useDark ? '#09090b' : '#f5f5f4',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
       contextIsolation: true,
       nodeIntegration: false
+    }
+  })
+
+  // 监听系统主题变化，自动同步窗口控制按钮颜色
+  nativeTheme.on('updated', () => {
+    if (mainWindow && !mainWindow.isDestroyed() && !isMac) {
+      const dark = nativeTheme.shouldUseDarkColors
+      try {
+        mainWindow.setTitleBarOverlay({
+          color: dark ? '#09090b' : '#f5f5f4',
+          symbolColor: dark ? '#e4e4e7' : '#333333'
+        })
+      } catch { /* ignore */ }
     }
   })
 
@@ -253,6 +272,34 @@ app.whenReady().then(async () => {
   // 关于窗口（侧边栏「设置 → 关于」入口调用，跨平台统一）
   ipcMain.handle('app:about', async () => {
     showAboutWindow()
+    return true
+  })
+
+  // 窗口控制操作（保留以兼容旧代码）
+  ipcMain.handle('window:minimize', () => {
+    mainWindow?.minimize()
+  })
+  ipcMain.handle('window:maximize', () => {
+    if (mainWindow?.isMaximized()) {
+      mainWindow.unmaximize()
+    } else {
+      mainWindow?.maximize()
+    }
+  })
+  ipcMain.handle('window:close', () => {
+    mainWindow?.close()
+  })
+  ipcMain.handle('window:isMaximized', () => {
+    return mainWindow?.isMaximized() ?? false
+  })
+
+  // 更新标题栏覆盖层颜色（应用内主题切换时调用）
+  ipcMain.handle('app:update-titlebar-overlay', (_event, color: string, symbolColor: string) => {
+    if (mainWindow && !mainWindow.isDestroyed() && process.platform !== 'darwin') {
+      try {
+        mainWindow.setTitleBarOverlay({ color, symbolColor })
+      } catch { /* ignore */ }
+    }
     return true
   })
 

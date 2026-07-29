@@ -79,6 +79,9 @@ export interface EventData {
 }
 
 const api = {
+  // 当前运行平台
+  platform: process.platform as NodeJS.Platform,
+
   // 登录验证
   auth: {
     login: (username: string, password: string): Promise<{ ok: boolean; status: number; data: any; error?: string }> =>
@@ -167,9 +170,19 @@ const api = {
     check: (): Promise<string[]> => ipcRenderer.invoke('notification:check')
   },
 
-  // 关于窗口
+  // 关于窗口 + 窗口控制
   app: {
-    about: (): Promise<boolean> => ipcRenderer.invoke('app:about')
+    about: (): Promise<boolean> => ipcRenderer.invoke('app:about'),
+    updateTitlebarOverlay: (color: string, symbolColor: string): Promise<boolean> =>
+      ipcRenderer.invoke('app:update-titlebar-overlay', color, symbolColor)
+  },
+
+  // 窗口控制（Windows 自定义标题栏）
+  win: {
+    minimize: (): Promise<void> => ipcRenderer.invoke('window:minimize'),
+    maximize: (): Promise<void> => ipcRenderer.invoke('window:maximize'),
+    close: (): Promise<void> => ipcRenderer.invoke('window:close'),
+    isMaximized: (): Promise<boolean> => ipcRenderer.invoke('window:isMaximized')
   },
 
   // 指数历史数据

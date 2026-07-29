@@ -1,5 +1,9 @@
 appId: com.snowball.pilot
 productName: Snowball Pilot
+# 使用纯 ASCII 版权声明：winCodeSign 2.6.0 的 rcedit 在 Win11 24H2 下
+# 写入含 "©" 的 LegalCopyright 会报 "Unable to commit changes"，
+# 因此这里用 (C) 代替 © 符号，确保版本资源能被正确写入。
+copyright: Copyright (C) 2026 Snowball Pilot
 directories:
   buildResources: resources
   output: dist
@@ -29,11 +33,13 @@ win:
   target:
     - nsis
     - portable
-  artifactName: ${productName}-${version}-setup.${ext}
 nsis:
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
+  artifactName: ${productName}-${version}-setup.${ext}
+portable:
+  artifactName: ${productName}-${version}-portable.${ext}
 # 说明：在当前 Win11 24H2 环境下，electron-builder 生成的 NSIS 自解压安装包
 # 启动时会出现「Not Responding / 无窗口」的兼容性问题（与 Defender 实时扫描
 # Temp 目录中未签名自解压进程有关）。应用本体（win-unpacked）本身完全正常。

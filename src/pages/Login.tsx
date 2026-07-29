@@ -44,8 +44,9 @@ export default function Login() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: isDark ? '#09090b' : '#f5f5f4'
-      }}
+        background: isDark ? '#09090b' : '#f5f5f4',
+        WebkitAppRegion: 'drag'
+      } as React.CSSProperties}
     >
       <div
         style={{

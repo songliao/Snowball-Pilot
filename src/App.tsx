@@ -26,10 +26,15 @@ export default function App() {
     document.documentElement.style.background = bg
     // 暴露主题到根元素，使 Tooltip 等渲染在 body 层的浮层也能读取主题
     document.documentElement.setAttribute('data-theme', mode)
+    // 同步更新 Windows 原生窗口控制按钮颜色
+    window.api.app.updateTitlebarOverlay(
+      isDark ? '#09090b' : '#f5f5f4',
+      isDark ? '#e4e4e7' : '#333333'
+    )
   }, [isDark, mode])
 
-  // 暴露运行平台到根元素：macOS 使用无边框 + 内嵌红绿灯，需保留自定义拖拽区；
-  // Windows/Linux 使用系统边框与标准窗口控制按钮，关闭拖拽区以免吞掉点击
+  // 暴露运行平台到根元素：macOS 使用无边框 + 内嵌红绿灯，
+  // Windows 使用隐藏标题栏 + 窗口控制按钮覆盖层
   useEffect(() => {
     const platform = /Mac|iPod|iPhone|iPad/.test(navigator.platform)
       ? 'mac'

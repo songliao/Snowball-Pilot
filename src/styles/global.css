@@ -26,13 +26,16 @@ html, body {
 }
 
 /* ===== Titlebar Drag ===== */
-/* 仅 macOS 无边框窗口需要自定义拖拽区；Windows/Linux 使用系统边框，
-   关闭拖拽区以免整块区域吞掉鼠标点击（如登录页输入框、按钮无法点击） */
+/* macOS 无边框窗口和 Windows 隐藏标题栏模式均需要自定义拖拽区 */
 .titlebar-drag {
   -webkit-app-region: drag;
 }
 
-html:not([data-platform='mac']) .titlebar-drag {
+/* 拖拽区内的交互元素需排除拖拽，保证可点击 */
+.titlebar-drag button,
+.titlebar-drag input,
+.titlebar-drag a,
+.titlebar-drag [role='button'] {
   -webkit-app-region: no-drag;
 }
 
