@@ -201,6 +201,10 @@ function createWindow(): void {
     }
   })
 
+  // 窗口创建时即设置应用菜单（仅保留应用名菜单；粘贴能力由
+  // before-input-event 的 ⌘V 兜底与右键 context-menu 提供，无需「编辑」菜单）。
+  buildAppMenu()
+
   // 监听系统主题变化，自动同步窗口控制按钮颜色
   nativeTheme.on('updated', () => {
     if (mainWindow && !mainWindow.isDestroyed() && !isMac) {
@@ -219,10 +223,31 @@ function createWindow(): void {
   })
 
   // ESC 退出全屏
-  mainWindow.webContents.on('before-input-event', (_event, input) => {
+  mainWindow.webContents.on('before-input-event', (event, input) => {
     if (input.key === 'Escape' && mainWindow?.isFullScreen()) {
       mainWindow.setFullScreen(false)
     }
+    // 兜底：⌘V / Ctrl+V 直接触发粘贴，避免自定义菜单未完全接管时粘贴失效
+    if ((input.meta || input.control) && input.key.toLowerCase() === 'v') {
+      event.preventDefault()
+      mainWindow?.webContents.paste()
+    }
+  })
+
+  // 右键上下文菜单兜底：保证在任何输入框都能复制/粘贴/剪切/全选
+  mainWindow.webContents.on('context-menu', (_e, params) => {
+    const menu = Menu.buildFromTemplate([
+      { role: 'undo' },
+      { role: 'redo' },
+      { type: 'separator' },
+      { role: 'cut' },
+      { role: 'copy' },
+      { role: 'paste' },
+      { role: 'pasteAndMatchStyle' },
+      { type: 'separator' },
+      { role: 'selectAll' }
+    ])
+    menu.popup({ window: mainWindow })
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
