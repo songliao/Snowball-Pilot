@@ -39,6 +39,54 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
+ * 带超时与重试的 JSON 拉取。
+ * 东方财富免费接口在高频 / 弱网（尤其 Windows）下偶发返回 5xx、429 或网络抖动，
+ * 通过重试 + 退避可消化绝大多数间歇失败，避免新增标的时误报「未获取到行情」。
+ */
+async function fetchJsonWithRetry(
+  url: string,
+  options: RequestInit = {},
+  {
+    retries = 3,
+    timeoutMs = 15000,
+    baseDelayMs = 500
+  }: { retries?: number; timeoutMs?: number; baseDelayMs?: number } = {}
+): Promise<any | null> {
+  const host = url.split('?')[0]
+  let lastErr: unknown
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    if (attempt > 0) {
+      const delay = baseDelayMs * Math.pow(2, attempt - 1) + Math.random() * 300
+      console.warn(`[IndexHistory] 拉取 ${host} 第 ${attempt} 次重试（${Math.round(delay)}ms 后）`)
+      await sleep(delay)
+    }
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
+    try {
+      const response = await fetch(url, { ...options, signal: controller.signal })
+      clearTimeout(timer)
+      if (!response.ok) {
+        // 429（限流）与 5xx（服务端错误）值得重试；其他 4xx（通常为代码/参数错误）直接放弃
+        const retryable = response.status === 429 || response.status >= 500
+        if (!retryable) {
+          console.warn(`[IndexHistory] 请求被拒(${response.status})：${host}`)
+          return null
+        }
+        lastErr = new Error(`HTTP ${response.status}`)
+        continue
+      }
+      return await response.json()
+    } catch (err) {
+      clearTimeout(timer)
+      lastErr = err
+      // 超时（abort）或网络异常：继续重试
+    }
+  }
+  console.error(`[IndexHistory] 拉取 ${host} 失败，已重试 ${retries} 次：`, lastErr)
+  return null
+}
+
+/**
  * 从东方财富拉取日K线历史数据
  * 注意：push2his 接口返回的是「真实价格」（不乘以100），
  * 与 push2 实时接口（价格×100）不同，切勿再除以100。
@@ -51,36 +99,35 @@ async function fetchKlineHistory(code: string, days = TWO_YEARS_DAYS): Promise<K
     console.warn(`[IndexHistory] 无法识别标的代码: ${code}`)
     return []
   }
-  try {
-    const url = `https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57&klt=101&fqt=0&end=20500101&lmt=${days}&ut=fa5fd1943c7b386f172d6893dbbd1`
+  const url = `https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57&klt=101&fqt=0&end=20500101&lmt=${days}&ut=fa5fd1943c7b386f172d6893dbbd1`
 
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
-        Referer: 'https://quote.eastmoney.com/'
-      }
-    })
+  // 带超时 + 重试拉取：东方财富免费接口偶发 5xx / 429 / 网络抖动会导致返回空，
+  // 重试可消化绝大多数间歇失败（Windows 下更易触发），避免误报「未获取到行情」
+  const json = await fetchJsonWithRetry(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+      Referer: 'https://quote.eastmoney.com/'
+    }
+  })
+  if (!json) return []
 
-    if (!response.ok) return []
-
-    const json = await response.json()
-    const klines: string[] = json?.data?.klines || []
-
-    return klines.map((line) => {
-      const parts = line.split(',')
-      return {
-        date: parts[0],              // 日期 yyyy-MM-dd
-        open: parseFloat(parts[1]),  // 开盘价
-        close: parseFloat(parts[2]), // 收盘价（真实价格，不除以100）
-        low: parseFloat(parts[3]),   // 最低价
-        high: parseFloat(parts[4]),  // 最高价
-        volume: parseFloat(parts[5]) // 成交量
-      }
-    }).filter((item) => item.close > 0)
-  } catch (error) {
-    console.error(`Failed to fetch kline for ${code}:`, error)
+  const klines: string[] = json?.data?.klines || []
+  if (!klines.length) {
+    console.warn(`[IndexHistory] ${code} 行情接口返回为空（secid=${secid}），可能代码无效或东方财富暂无数据`)
     return []
   }
+
+  return klines.map((line) => {
+    const parts = line.split(',')
+    return {
+      date: parts[0],              // 日期 yyyy-MM-dd
+      open: parseFloat(parts[1]),  // 开盘价
+      close: parseFloat(parts[2]), // 收盘价（真实价格，不除以100）
+      low: parseFloat(parts[3]),   // 最低价
+      high: parseFloat(parts[4]),  // 最高价
+      volume: parseFloat(parts[5]) // 成交量
+    }
+  }).filter((item) => item.close > 0)
 }
 
 /**
@@ -251,14 +298,17 @@ export async function backfillSingleCode(
   days = TWO_YEARS_DAYS
 ): Promise<{ code: string; saved: number }> {
   if (!code) return { code, saved: 0 }
-  // 直接清空并重建该标的，保证新增即补齐且覆盖可能的旧数据
-  execute('DELETE FROM price_history WHERE underlying_code = ?', [code])
+  // 先拉取行情；仅当成功拿到数据后再清空并重建，
+  // 避免拉取偶发失败时误删该标的已有的历史数据（如重复新增刷新场景）
   const klines = await fetchKlineHistory(code, days)
   let saved = 0
-  for (const k of klines) {
-    if (saveClosePrice(code, k)) saved++
+  if (klines.length > 0) {
+    execute('DELETE FROM price_history WHERE underlying_code = ?', [code])
+    for (const k of klines) {
+      if (saveClosePrice(code, k)) saved++
+    }
+    storeMA(code) // 批量写入后计算并存储均线
   }
-  storeMA(code) // 批量写入后计算并存储均线
   saveDatabase() // 批量写入完成后统一落盘一次
   return { code, saved }
 }

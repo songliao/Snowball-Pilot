@@ -1,15 +1,51 @@
 import initSqlJs, { Database as SqlJsDatabase } from 'sql.js'
 import { app } from 'electron'
 import { join } from 'path'
-import { readFileSync, writeFileSync, existsSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync, copyFileSync } from 'fs'
 import { SNOWBALL_TABLE, PHOENIX_TABLE, SNOWBALL_COLS, PHOENIX_COLS } from './schema'
 
 let db: SqlJsDatabase | null = null
 let dbPath: string = ''
+let currentUser: string | null = null
+let SQL: any = null
+
+// ——— 多用户数据隔离 ———
+// 每个用户使用独立的数据库文件：snowball-pilot-<username>.db。
+// 登录（auth:login / auth:resume）成功后由主进程切换到相应用户的库，
+// 登出（auth:logout）则关闭当前库。不同账号的持仓 / 行情 / 自选 / 事件等数据完全不互通。
+
+// 文件名仅保留安全字符，避免路径穿越与非法文件名（Windows 不允许 \ / : * ? " < > |）
+function safeUserFile(name: string): string {
+  const safe = name.replace(/[\\/:*?"<>|]/g, '_').trim()
+  return safe ? safe.slice(0, 64) : 'default'
+}
+
+export function getUserDbPath(username: string): string {
+  return join(app.getPath('userData'), `snowball-pilot-${safeUserFile(username)}.db`)
+}
+
+export function getCurrentUser(): string | null {
+  return currentUser
+}
+
+// 应用级元数据（不随用户隔离），用于把旧版单库数据一次性迁移给首个登录的用户
+function getRootMetaPath(): string {
+  return join(app.getPath('userData'), 'app-meta.json')
+}
+function readRootMeta(): Record<string, unknown> {
+  try {
+    return JSON.parse(readFileSync(getRootMetaPath(), 'utf8')) as Record<string, unknown>
+  } catch {
+    return {}
+  }
+}
+function writeRootMeta(meta: Record<string, unknown>): void {
+  writeFileSync(getRootMetaPath(), JSON.stringify(meta, null, 2))
+}
 
 export function getDatabase(): SqlJsDatabase {
   if (!db) {
-    throw new Error('Database not initialized')
+    throw new Error('Database not initialized (no user logged in)')
   }
   return db
 }
@@ -26,29 +62,26 @@ export function saveDatabase(): void {
 // 拷贝到 resources 目录，这里统一从 resourcesPath 定位。
 function getSqlWasmLocateFile(): (file: string) => string {
   if (app.isPackaged) {
-    return (file: string) => join(process.resourcesPath, file)
+    return (s: string) => join(process.resourcesPath, s)
   }
   // 开发模式：从项目根下的 node_modules/sql.js/dist 加载
-  return (file: string) => join(app.getAppPath(), 'node_modules', 'sql.js', 'dist', file)
+  return (s: string) => join(app.getAppPath(), 'node_modules', 'sql.js', 'dist', s)
 }
 
-export async function initDatabase(): Promise<void> {
-  dbPath = join(app.getPath('userData'), 'snowball-pilot.db')
-
-  const SQL = await initSqlJs({ locateFile: getSqlWasmLocateFile() })
-
-  if (existsSync(dbPath)) {
-    const fileBuffer = readFileSync(dbPath)
-    db = new SQL.Database(fileBuffer)
-  } else {
-    db = new SQL.Database()
+// 仅加载一次 sql.js 引擎（不依赖具体用户库）
+async function loadSqlEngine(): Promise<void> {
+  if (!SQL) {
+    SQL = await initSqlJs({ locateFile: getSqlWasmLocateFile() })
   }
+}
 
+// 建表 + 历史迁移（每次打开用户库时执行，对新建 / 已有库均幂等）
+function setupSchema(): void {
   // 创建表（雪球 / 凤凰 分表，列定义与 schema.ts 保持一致）
-  db.run(buildCreateSql(SNOWBALL_TABLE, SNOWBALL_COLS))
-  db.run(buildCreateSql(PHOENIX_TABLE, PHOENIX_COLS))
+  db!.run(buildCreateSql(SNOWBALL_TABLE, SNOWBALL_COLS))
+  db!.run(buildCreateSql(PHOENIX_TABLE, PHOENIX_COLS))
 
-  db.run(`
+  db!.run(`
     CREATE TABLE IF NOT EXISTS price_history (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       underlying_code TEXT NOT NULL,
@@ -59,7 +92,7 @@ export async function initDatabase(): Promise<void> {
     );
   `)
 
-  db.run(`
+  db!.run(`
     CREATE TABLE IF NOT EXISTS events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       position_id INTEGER NOT NULL,
@@ -71,17 +104,17 @@ export async function initDatabase(): Promise<void> {
     );
   `)
 
-  db.run(`
+  db!.run(`
     CREATE TABLE IF NOT EXISTS meta (
       key TEXT PRIMARY KEY,
       value TEXT
     );
   `)
 
-  db.run(`CREATE INDEX IF NOT EXISTS idx_price_history_code ON price_history(underlying_code, date);`)
-  db.run(`CREATE INDEX IF NOT EXISTS idx_events_position ON events(position_id, structure_type);`)
-  db.run(`CREATE INDEX IF NOT EXISTS idx_snowball_status ON snowball_positions(status);`)
-  db.run(`CREATE INDEX IF NOT EXISTS idx_phoenix_status ON phoenix_positions(status);`)
+  db!.run(`CREATE INDEX IF NOT EXISTS idx_price_history_code ON price_history(underlying_code, date);`)
+  db!.run(`CREATE INDEX IF NOT EXISTS idx_events_position ON events(position_id, structure_type);`)
+  db!.run(`CREATE INDEX IF NOT EXISTS idx_snowball_status ON snowball_positions(status);`)
+  db!.run(`CREATE INDEX IF NOT EXISTS idx_phoenix_status ON phoenix_positions(status);`)
 
   // 旧 positions 表迁移到分表（仅首次，迁移后删除旧表）
   migrateFromLegacyPositions()
@@ -91,11 +124,11 @@ export async function initDatabase(): Promise<void> {
   migratePhoenixColumns()
   // events 兼容旧数据：补齐 structure_type 列
   try {
-    db.run(`ALTER TABLE events ADD COLUMN structure_type TEXT DEFAULT 'snowball';`)
+    db!.run(`ALTER TABLE events ADD COLUMN structure_type TEXT DEFAULT 'snowball';`)
   } catch { /* 已存在则忽略 */ }
 
   // 自选标的（勾选后显示在总览页面的行情卡片）
-  db.run(`
+  db!.run(`
     CREATE TABLE IF NOT EXISTS watchlist (
       code TEXT PRIMARY KEY,
       sort_order INTEGER DEFAULT 0
@@ -105,31 +138,78 @@ export async function initDatabase(): Promise<void> {
   // 迁移：price_history 增加 开/高/低/成交量 字段（用于蜡烛图展示真实 K 线）
   for (const col of ['open REAL', 'high REAL', 'low REAL', 'volume REAL']) {
     try {
-      db.run(`ALTER TABLE price_history ADD COLUMN ${col};`)
+      db!.run(`ALTER TABLE price_history ADD COLUMN ${col};`)
     } catch { /* 字段已存在则忽略 */ }
   }
 
   // 迁移：price_history 增加 均线 字段（MA5 / MA10 / MA20，基于收盘价）
   for (const col of ['ma5 REAL', 'ma10 REAL', 'ma20 REAL']) {
     try {
-      db.run(`ALTER TABLE price_history ADD COLUMN ${col};`)
+      db!.run(`ALTER TABLE price_history ADD COLUMN ${col};`)
     } catch { /* 字段已存在则忽略 */ }
   }
 
-  // 首次启动：把默认 4 个宽基指数设为默认自选（仅在从未初始化过时）
+  // 首次启动（针对当前用户库）：把默认 4 个宽基指数设为默认自选
   if (!getMeta('watchlist_seeded')) {
     const cnt = queryOne<{ c: number }>('SELECT COUNT(*) AS c FROM watchlist')
     if (!cnt || cnt.c === 0) {
       const defaults = ['000852.SH', '000905.SH', '000300.SH', '000016.SH']
       for (const code of defaults) {
-        db.run('INSERT OR IGNORE INTO watchlist (code) VALUES (?)', [code])
+        db!.run('INSERT OR IGNORE INTO watchlist (code) VALUES (?)', [code])
       }
     }
     setMeta('watchlist_seeded', '1')
   }
+}
 
+// 打开 / 切换至指定用户的数据库（登录成功后调用）
+export async function openUserDatabase(username: string): Promise<void> {
+  await loadSqlEngine()
+
+  // 关闭当前已打开的库（如有），先落盘避免数据丢失
+  if (db) {
+    saveDatabase()
+    db.close()
+    db = null
+  }
+
+  const targetPath = getUserDbPath(username)
+
+  // 一次性迁移：旧版单库 snowball-pilot.db 的数据归属「首个登录」的用户，
+  // 避免历史持仓在隔离改造中丢失；之后的用户各自从空库开始。
+  if (!existsSync(targetPath)) {
+    const legacyPath = join(app.getPath('userData'), 'snowball-pilot.db')
+    const rootMeta = readRootMeta()
+    if (!rootMeta.legacyMigrated && existsSync(legacyPath)) {
+      try {
+        copyFileSync(legacyPath, targetPath)
+        rootMeta.legacyMigrated = true
+        rootMeta.legacyOwner = username
+        writeRootMeta(rootMeta)
+        console.log(`[DB] 旧版数据已迁移至用户「${username}」的独立数据库`)
+      } catch (e) {
+        console.error('[DB] 迁移旧版数据失败：', e)
+      }
+    }
+  }
+
+  dbPath = targetPath
+  if (existsSync(targetPath)) {
+    db = new SQL.Database(readFileSync(targetPath))
+  } else {
+    db = new SQL.Database()
+  }
+  currentUser = username
+
+  setupSchema()
   saveDatabase()
-  console.log('Database initialized at:', dbPath)
+  console.log('Database opened for user', username, 'at', dbPath)
+}
+
+// 应用启动时调用：仅加载 sql.js 引擎，不打开任何用户库。
+// 真正的用户库在登录（auth:login / auth:resume）成功后由 openUserDatabase 打开。
+export async function initDatabase(): Promise<void> {
+  await loadSqlEngine()
 }
 
 // 辅助函数：查询多行
@@ -182,6 +262,7 @@ export function closeDatabase(): void {
     db.close()
     db = null
   }
+  currentUser = null
 }
 
 // 键值存储（用于保存回填版本等元数据）

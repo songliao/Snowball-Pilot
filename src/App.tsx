@@ -21,6 +21,16 @@ export default function App() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
   const loginTime = useAuthStore((s) => s.loginTime)
   const logout = useAuthStore((s) => s.logout)
+  const dbReady = useAuthStore((s) => s.dbReady)
+  const resume = useAuthStore((s) => s.resume)
+
+  // 启动时若本地已保存登录态（isAuthenticated 为真但数据库尚未打开），
+  // 需先恢复对应用户的独立数据库，再渲染主界面，避免访问空库报错。
+  useEffect(() => {
+    if (isAuthenticated && !dbReady) {
+      resume()
+    }
+  }, [isAuthenticated, dbReady, resume])
 
   // 登录有效期为 30 天：本地记录登录时间，后台定期检查是否已过期；
   // 超过有效期则自动登出，要求重新登录（无需请求服务端校验）。
@@ -177,13 +187,31 @@ export default function App() {
             hoverBorderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)',
             activeShadow: 'none'
           },
-          Tag: { borderRadiusSM: 5 }
+          Tag: { borderRadiusSM: 5 },
+          // Drawer 背景与窗口底色保持一致，避免与标题栏/窗口控件区域产生色差
+          Drawer: {
+            colorBgElevated: isDark ? '#09090b' : '#f5f5f4'
+          }
         }
       }}
     >
       <div data-theme={mode} style={{ minHeight: '100vh', background: isDark ? '#09090b' : '#f5f5f4' }}>
         {!isAuthenticated ? (
           <Login />
+        ) : !dbReady ? (
+          // 数据库尚未就绪（恢复会话中）：短暂占位，避免主界面访问空库
+          <div
+            style={{
+              minHeight: '100vh',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: isDark ? 'rgba(244,244,245,0.5)' : 'rgba(30,30,34,0.45)',
+              fontSize: 14
+            }}
+          >
+            正在加载数据…
+          </div>
         ) : (
           <HashRouter>
             <AppLayout>

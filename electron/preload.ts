@@ -86,6 +86,10 @@ const api = {
   auth: {
     login: (username: string, password: string): Promise<{ ok: boolean; status: number; data: any; error?: string }> =>
       ipcRenderer.invoke('auth:login', username, password),
+    // 应用启动时恢复已保存会话对应的用户数据库
+    resume: (username: string): Promise<boolean> => ipcRenderer.invoke('auth:resume', username),
+    // 登出：通知主进程关闭当前用户数据库
+    logout: (): Promise<boolean> => ipcRenderer.invoke('auth:logout'),
     ping: (): Promise<boolean> => ipcRenderer.invoke('auth:ping')
   },
 

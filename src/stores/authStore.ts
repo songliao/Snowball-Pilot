@@ -10,8 +10,12 @@ interface AuthState {
   loginTime: number
   loading: boolean
   error: string
+  // 主进程是否已为该用户打开独立数据库；未就绪前不渲染主界面，避免访问空库
+  dbReady: boolean
   login: (username: string, password: string) => Promise<boolean>
-  logout: () => void
+  logout: () => Promise<void>
+  // 应用启动时若本地已保存登录态，恢复对应账号的数据库
+  resume: () => Promise<void>
 }
 
 function getStoredAuth(): { username: string; token: string; loginTime: number } | null {
@@ -32,7 +36,7 @@ function getStoredAuth(): { username: string; token: string; loginTime: number }
   return null
 }
 
-export const useAuthStore = create<AuthState>((set) => {
+export const useAuthStore = create<AuthState>((set, get) => {
   const stored = getStoredAuth()
 
   return {
@@ -42,10 +46,12 @@ export const useAuthStore = create<AuthState>((set) => {
     loginTime: stored?.loginTime || 0,
     loading: false,
     error: '',
+    dbReady: false,
 
     login: async (username: string, password: string) => {
       set({ loading: true, error: '' })
       try {
+        // 主进程在返回前已完成「打开该用户独立数据库 + 补足行情历史」
         const result = await window.api.auth.login(username, password)
         if (result.error) {
           set({ loading: false, error: '网络连接失败，请检查网络后重试' })
@@ -67,7 +73,8 @@ export const useAuthStore = create<AuthState>((set) => {
           token,
           loginTime,
           loading: false,
-          error: ''
+          error: '',
+          dbReady: true
         })
         return true
       } catch {
@@ -76,11 +83,29 @@ export const useAuthStore = create<AuthState>((set) => {
       }
     },
 
-    logout: () => {
+    resume: async () => {
+      const stored = getStoredAuth()
+      if (!stored) {
+        set({ isAuthenticated: false, dbReady: false })
+        return
+      }
+      try {
+        await window.api.auth.resume(stored.username)
+        set({ dbReady: true })
+      } catch (e) {
+        console.error('恢复用户数据库失败：', e)
+      }
+    },
+
+    logout: async () => {
+      // 通知主进程关闭当前用户数据库（落盘），再清理本地凭证
+      try {
+        await window.api.auth.logout()
+      } catch { /* 忽略主进程未就绪等异常 */ }
       localStorage.removeItem('auth-token')
       localStorage.removeItem('auth-username')
       localStorage.removeItem('auth-login-time')
-      set({ isAuthenticated: false, username: '', token: '', loginTime: 0, error: '' })
+      set({ isAuthenticated: false, username: '', token: '', loginTime: 0, error: '', dbReady: false })
     }
   }
 })

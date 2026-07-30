@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, shell, net, Menu, nativeTheme } from 'elec
 import { join } from 'path'
 import { readFileSync } from 'fs'
 import { is } from '@electron-toolkit/utils'
-import { initDatabase } from './database'
+import { initDatabase, openUserDatabase, closeDatabase, getCurrentUser } from './database'
 import { registerPositionHandlers } from './database/positions'
 import { registerPriceHandlers } from './database/prices'
 import { registerEventHandlers } from './database/events'
@@ -345,7 +345,7 @@ app.whenReady().then(async () => {
 
   // 登录验证（主进程发起请求，绕过 CORS）
   ipcMain.handle('auth:login', async (_event, username: string, password: string) => {
-    return new Promise((resolve) => {
+    const result: { ok: boolean; status: number; data: any; error?: string } = await new Promise((resolve) => {
       const request = net.request({
         method: 'POST',
         url: 'http://8.159.158.153:6001/api/v1/auth/login/'
@@ -370,6 +370,35 @@ app.whenReady().then(async () => {
       request.write(JSON.stringify({ username, password }))
       request.end()
     })
+
+    // 登录成功后切换到该用户的独立数据库，并补足行情历史
+    if (result.ok) {
+      try {
+        await openUserDatabase(username)
+        ensureHistoryBackfilled().catch((e) => console.error('Backfill failed:', e))
+      } catch (e) {
+        console.error('打开用户数据库失败：', e)
+      }
+    }
+    return result
+  })
+
+  // 恢复会话：应用启动时若本地已保存登录态，前端据此打开对应账号的数据库
+  ipcMain.handle('auth:resume', async (_event, username: string) => {
+    try {
+      await openUserDatabase(username)
+      ensureHistoryBackfilled().catch((e) => console.error('Backfill failed:', e))
+    } catch (e) {
+      console.error('恢复用户数据库失败：', e)
+      return false
+    }
+    return true
+  })
+
+  // 登出：关闭当前用户数据库（落盘），主进程回到「无用户」状态
+  ipcMain.handle('auth:logout', async () => {
+    closeDatabase()
+    return true
   })
 
   // 服务健康检查
@@ -399,12 +428,12 @@ app.whenReady().then(async () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 
-  // 定时检查提醒（每5分钟）
+  // 定时检查提醒（每5分钟）；仅在已登录用户时执行
   setInterval(() => {
-    checkAndNotify(mainWindow)
+    if (getCurrentUser()) checkAndNotify(mainWindow)
   }, 5 * 60 * 1000)
 
-  // 每日收盘后自动保存指数收盘价（15:05 检查）
+  // 每日收盘后自动保存指数收盘价（15:05 检查）；仅在已登录用户时执行
   const scheduleDailySave = () => {
     const now = new Date()
     const target = new Date()
@@ -413,15 +442,17 @@ app.whenReady().then(async () => {
     if (delay <= 0) delay += 24 * 60 * 60 * 1000 // 已过则明天
 
     setTimeout(() => {
-      saveDailyClose()
+      if (getCurrentUser()) saveDailyClose()
       // 之后每24小时执行一次
-      setInterval(saveDailyClose, 24 * 60 * 60 * 1000)
+      setInterval(() => {
+        if (getCurrentUser()) saveDailyClose()
+      }, 24 * 60 * 60 * 1000)
     }, delay)
   }
   scheduleDailySave()
 
-  // 启动时自动补足历史数据（首次启动补足全部标的近2年；之后仅补足缺失的新标的）
-  ensureHistoryBackfilled().catch((e) => console.error('Backfill failed:', e))
+  // 历史数据补足改为「登录成功后」按需执行（见 auth:login / auth:resume 处理），
+  // 启动阶段尚未确定用户，不在此处无条件触发，避免访问未打开的数据库。
 })
 
 app.on('window-all-closed', () => {
