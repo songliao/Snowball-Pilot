@@ -34,8 +34,8 @@ mac:
   #   APPLE_APP_SPECIFIC_PASSWORD   appleid.apple.com 生成的 App 专用密码
   #   APPLE_TEAM_ID             developer.apple.com 的 10 位 Team ID
   # 例如：APPLE_ID=me@icloud.com APPLE_APP_SPECIFIC_PASSWORD=abcd-efgh-ijkl-mnop APPLE_TEAM_ID=ABCDE12345 npm run dist:mac
-  entitlements: /Users/liaosong/Documents/GitHub/Snowball-Pilot/resources/entitlements.mac.plist
-  entitlementsInherit: /Users/liaosong/Documents/GitHub/Snowball-Pilot/resources/entitlements.mac.plist
+  entitlements: resources/entitlements.mac.plist
+  entitlementsInherit: resources/entitlements.mac.plist
   target:
     - dmg
     - zip

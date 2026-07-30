@@ -8,7 +8,7 @@ interface PositionState {
   events: EventData[]
 
   fetchAll: () => Promise<void>
-  fetchById: (id: number) => Promise<void>
+  fetchById: (id: number, structureType?: string) => Promise<void>
   create: (data: Omit<PositionData, 'id' | 'created_at' | 'updated_at'>) => Promise<number>
   update: (id: number, data: Partial<PositionData>) => Promise<boolean>
   remove: (id: number, structureType: string) => Promise<boolean>
@@ -33,8 +33,8 @@ export const usePositionStore = create<PositionState>((set, get) => ({
     }
   },
 
-  fetchById: async (id: number) => {
-    const current = await window.api.positions.getById(id)
+  fetchById: async (id: number, structureType?: string) => {
+    const current = await window.api.positions.getById(id, structureType)
     set({ current })
   },
 

@@ -101,6 +101,7 @@ export default function Positions() {
         width: W.date,
         className: 'trade-date-col',
         onHeaderCell: () => ({ className: 'trade-date-col' }),
+        sorter: (a, b) => (a.trade_start_date || '').localeCompare(b.trade_start_date || ''),
         render: (_, r) => (r.trade_start_date ? dayjs(r.trade_start_date).format('YY-MM-DD') : '—')
       },
       {
@@ -125,6 +126,7 @@ export default function Positions() {
         title: '敲出观察日',
         key: 'next_ko_date',
         width: W.koDate,
+        sorter: (a, b) => (getNextKo(a).date || '').localeCompare(getNextKo(b).date || ''),
         render: (_, r) => {
           const { date } = getNextKo(r)
           return date ? dayjs(date).format('YY-MM-DD') : '—'
@@ -136,6 +138,8 @@ export default function Positions() {
         width: W.koBarrier,
         ellipsis: true,
         align: 'right',
+        sorter: (a, b) =>
+          (getNextKo(a).barrierPrice ?? -Infinity) - (getNextKo(b).barrierPrice ?? -Infinity),
         render: (_, r) => {
           const { barrierPrice } = getNextKo(r)
           return barrierPrice != null ? barrierPrice.toFixed(2) : '—'
@@ -184,7 +188,7 @@ export default function Positions() {
               title="查看"
               onClick={(e) => {
                 e.stopPropagation()
-                navigate(`/positions/${r.id}`)
+                navigate(`/positions/${r.structure_type}/${r.id}`, { state: { from: '/positions' } })
               }}
             >
               <span className="nav-icon-circle">
@@ -228,6 +232,7 @@ export default function Positions() {
         title: '派息观察日',
         key: 'next_coupon_date',
         width: W.couponDate,
+        sorter: (a, b) => (getNextCoupon(a).date || '').localeCompare(getNextCoupon(b).date || ''),
         render: (_, r: PositionData) => {
           const { date } = getNextCoupon(r)
           return date ? dayjs(date).format('YY-MM-DD') : '—'
@@ -238,6 +243,8 @@ export default function Positions() {
         key: 'next_coupon_barrier',
         width: W.couponBarrier,
         align: 'right',
+        sorter: (a, b) =>
+          (getNextCoupon(a).barrierPrice ?? -Infinity) - (getNextCoupon(b).barrierPrice ?? -Infinity),
         render: (_, r: PositionData) => {
           const { barrierPrice } = getNextCoupon(r)
           return barrierPrice != null ? barrierPrice.toFixed(2) : '—'
@@ -262,7 +269,7 @@ export default function Positions() {
       locale={{ emptyText: '暂无持仓' }}
       onRow={(record) => ({
         style: { cursor: 'pointer' },
-        onClick: () => navigate(`/positions/${record.id}`)
+        onClick: () => navigate(`/positions/${record.structure_type}/${record.id}`, { state: { from: '/positions' } })
       })}
     />
   )

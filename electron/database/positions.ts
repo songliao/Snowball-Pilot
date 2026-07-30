@@ -26,7 +26,22 @@ export function registerPositionHandlers(): void {
     )
   })
 
-  ipcMain.handle('positions:get-by-id', (_event, id: number) => {
+  ipcMain.handle('positions:get-by-id', (_event, id: number, structureType?: string) => {
+    // 两张表各自的 id 独立自增，同名 id 可能分属雪球/凤凰两条记录。
+    // 必须带上 structureType 才能唯一确定要查的表，否则会误命中另一张表同号记录。
+    if (structureType === 'phoenix') {
+      return queryOne(
+        `SELECT *, 'phoenix' as structure_type FROM phoenix_positions WHERE id = ?`,
+        [id]
+      )
+    }
+    if (structureType === 'snowball') {
+      return queryOne(
+        `SELECT *, 'snowball' as structure_type FROM snowball_positions WHERE id = ?`,
+        [id]
+      )
+    }
+    // 兜底：未提供类型时（如旧链接/手动刷新），先雪球后凤凰，保持历史行为。
     const snow = queryOne(
       `SELECT *, 'snowball' as structure_type FROM snowball_positions WHERE id = ?`,
       [id]

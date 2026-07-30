@@ -93,7 +93,7 @@ function MiniMonthCalendar({
           .join('、')}
         onClick={(e) => {
           e.stopPropagation()
-          onEventClick(first.positionId)
+          onEventClick(first)
         }}
       >
         {list.slice(0, 3).map((e) => (
@@ -293,7 +293,7 @@ export default function EventCalendar() {
               setSelectedDate(null)
             }}
             eventsByDate={eventsByDate}
-            onEventClick={(id) => navigate(`/positions/${id}`, { state: { from: '/events' } })}
+            onEventClick={(e) => navigate(`/positions/${e.structureType || 'snowball'}/${e.positionId}`, { state: { from: '/events' } })}
           />
         </div>
 
@@ -322,7 +322,7 @@ export default function EventCalendar() {
             activeKo.map((e) => (
               <div
                 key={e.key}
-                onClick={() => navigate(`/positions/${e.positionId}`, { state: { from: '/events' } })}
+                onClick={() => navigate(`/positions/${e.structureType || 'snowball'}/${e.positionId}`, { state: { from: '/events' } })}
                 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`, cursor: 'pointer' }}
               >
                 <div>
@@ -376,7 +376,7 @@ export default function EventCalendar() {
             activeCoupon.map((e) => (
               <div
                 key={e.key}
-                onClick={() => navigate(`/positions/${e.positionId}`, { state: { from: '/events' } })}
+                onClick={() => navigate(`/positions/${e.structureType || 'snowball'}/${e.positionId}`, { state: { from: '/events' } })}
                 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`, cursor: 'pointer' }}
               >
                 <div>

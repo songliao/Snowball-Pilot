@@ -73,7 +73,7 @@ const parseStringList = (input?: string): string[] => {
 }
 
 export default function PositionForm({ readOnly = false, bare = false }: { readOnly?: boolean; bare?: boolean }) {
-  const { id } = useParams()
+  const { id, type } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
   const [form] = Form.useForm()
@@ -118,7 +118,7 @@ export default function PositionForm({ readOnly = false, bare = false }: { readO
   useEffect(() => {
     if (!id) return
     const load = async () => {
-      const current = await window.api.positions.getById(Number(id))
+      const current = await window.api.positions.getById(Number(id), type)
       if (!current) {
         message.error('未找到该持仓')
         navigate('/positions')
@@ -681,7 +681,7 @@ export default function PositionForm({ readOnly = false, bare = false }: { readO
         </div>
         <Space style={{ marginTop: 18 }}>
           {readOnly ? (
-            <Button type="primary" style={{ width: 96, height: 31 }} onClick={() => navigate(`/positions/${id}/edit`)}>
+            <Button type="primary" style={{ width: 96, height: 31 }} onClick={() => navigate(`/positions/${current?.structure_type}/${id}/edit`, { state: { from: `/positions/${current?.structure_type}/${id}` } })}>
               编辑
             </Button>
           ) : (

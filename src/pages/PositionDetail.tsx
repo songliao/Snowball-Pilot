@@ -27,7 +27,7 @@ function parseJsonArray<T>(s: string | null | undefined): T[] {
 }
 
 export default function PositionDetail() {
-  const { id } = useParams()
+  const { id, type } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
   const { current, fetchById, updateStatus, update } = usePositionStore()
@@ -44,7 +44,7 @@ export default function PositionDetail() {
   const [couponAmount, setCouponAmount] = useState<number | null>(null)
 
   useEffect(() => {
-    if (id) fetchById(Number(id))
+    if (id) fetchById(Number(id), type)
   }, [id])
 
   useEffect(() => {
@@ -195,7 +195,7 @@ export default function PositionDetail() {
       kiDateStr
     )
     message.success('状态已更新')
-    fetchById(pos.id!)
+    fetchById(pos.id!, pos.structure_type)
   }
 
   const handleKiConfirm = async () => {
@@ -207,7 +207,7 @@ export default function PositionDetail() {
   const handleRevokeKnockIn = async () => {
     await updateStatus(pos.id!, 'active', pos.structure_type, false)
     message.success('已撤回敲入状态')
-    fetchById(pos.id!)
+    fetchById(pos.id!, pos.structure_type)
   }
 
   const handleRevokeEnd = async () => {
@@ -215,7 +215,7 @@ export default function PositionDetail() {
     const prevStatus = pos.is_ki ? 'knocked_in' : 'active'
     await updateStatus(pos.id!, prevStatus, pos.structure_type, undefined, undefined, null, null)
     message.success('已撤销了结')
-    fetchById(pos.id!)
+    fetchById(pos.id!, pos.structure_type)
   }
 
   const handleEndConfirm = async () => {
@@ -231,7 +231,7 @@ export default function PositionDetail() {
       endPayoff ?? 0
     )
     message.success('状态已更新')
-    fetchById(pos.id!)
+    fetchById(pos.id!, pos.structure_type)
   }
 
   const handleCouponConfirm = async () => {
@@ -257,7 +257,7 @@ export default function PositionDetail() {
     message.success('已记录派息')
     setCouponDate(dayjs())
     setCouponAmount(null)
-    fetchById(pos.id!)
+    fetchById(pos.id!, pos.structure_type)
   }
 
   const handleFetchPrice = async () => {
@@ -373,7 +373,7 @@ export default function PositionDetail() {
               </Button>
             </Popconfirm>
           )}
-          <Button className="action-btn" icon={<span className="nav-icon-circle"><EditOutlined /></span>} onClick={() => navigate(`/positions/${pos.id}/edit`)}>
+          <Button className="action-btn" icon={<span className="nav-icon-circle"><EditOutlined /></span>} onClick={() => navigate(`/positions/${pos.structure_type}/${pos.id}/edit`, { state: { from: `/positions/${pos.structure_type}/${pos.id}` } })}>
             编辑合约
           </Button>
         </Space>

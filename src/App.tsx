@@ -191,6 +191,9 @@ export default function App() {
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/positions" element={<Positions />} />
                 <Route path="/positions/new" element={<PositionForm />} />
+                <Route path="/positions/:type/:id/edit" element={<PositionForm />} />
+                <Route path="/positions/:type/:id" element={<PositionDetail />} />
+                {/* 旧链接兜底（无 type，getById 退回先雪球后凤凰） */}
                 <Route path="/positions/:id/edit" element={<PositionForm />} />
                 <Route path="/positions/:id" element={<PositionDetail />} />
                 <Route path="/instruments" element={<InstrumentManagement />} />

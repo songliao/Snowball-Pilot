@@ -92,8 +92,8 @@ const api = {
   // 持仓操作
   positions: {
     getAll: (): Promise<PositionData[]> => ipcRenderer.invoke('positions:get-all'),
-    getById: (id: number): Promise<PositionData | null> =>
-      ipcRenderer.invoke('positions:get-by-id', id),
+    getById: (id: number, structureType?: string): Promise<PositionData | null> =>
+      ipcRenderer.invoke('positions:get-by-id', id, structureType),
     create: (data: Omit<PositionData, 'id' | 'created_at' | 'updated_at'>): Promise<number> =>
       ipcRenderer.invoke('positions:create', data),
     update: (id: number, data: Partial<PositionData>): Promise<boolean> =>

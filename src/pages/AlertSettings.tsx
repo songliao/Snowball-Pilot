@@ -238,7 +238,7 @@ export default function AlertSettings() {
                   return (
                     <div
                       key={a.id}
-                      onClick={() => navigate(`/positions/${a.id}`, { state: { from: '/settings/alerts' } })}
+                      onClick={() => navigate(`/positions/${a.structureType || 'snowball'}/${a.id}`, { state: { from: '/settings/alerts' } })}
                       style={{
                         border: '1px solid rgba(248,113,113,0.28)',
                         borderRadius: 8,

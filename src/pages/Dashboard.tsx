@@ -318,9 +318,11 @@ export default function Dashboard() {
             <div className="stat-card-inner">
               <div>
                 <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 4 }}>名义本金</div>
-                <div style={{ fontSize: 20, fontWeight: 600 }}>
+                <div style={{ fontSize: 20, fontWeight: 600, lineHeight: 1.15, whiteSpace: 'nowrap' }}>
                   {formatMoney(activeNotional)}
-                  <span style={{ fontSize: 13, opacity: 0.45, fontWeight: 400 }}> / {formatMoney(totalNotional)}</span>
+                </div>
+                <div style={{ fontSize: 12, opacity: 0.45, fontWeight: 400, marginTop: 2, whiteSpace: 'nowrap' }}>
+                  {formatMoney(totalNotional)}
                 </div>
               </div>
               <div className="stat-icon"><DollarOutlined /></div>
@@ -332,9 +334,11 @@ export default function Dashboard() {
             <div className="stat-card-inner">
               <div>
                 <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 4 }}>保证金</div>
-                <div style={{ fontSize: 20, fontWeight: 600 }}>
+                <div style={{ fontSize: 20, fontWeight: 600, lineHeight: 1.15, whiteSpace: 'nowrap' }}>
                   {formatMoney(activeMargin)}
-                  <span style={{ fontSize: 13, opacity: 0.45, fontWeight: 400 }}> / {formatMoney(totalMargin)}</span>
+                </div>
+                <div style={{ fontSize: 12, opacity: 0.45, fontWeight: 400, marginTop: 2, whiteSpace: 'nowrap' }}>
+                  {formatMoney(totalMargin)}
                 </div>
               </div>
               <div className="stat-icon"><SafetyCertificateOutlined /></div>
@@ -518,7 +522,7 @@ export default function Dashboard() {
                     className="glass-card"
                     variant="borderless"
                     hoverable
-                    onClick={() => navigate(`/positions/${a.id}`, { state: { from: '/' } })}
+                    onClick={() => navigate(`/positions/${a.structureType || 'snowball'}/${a.id}`, { state: { from: '/' } })}
                     style={{ border: '1px solid rgba(248,113,113,0.28)', cursor: 'pointer' }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
