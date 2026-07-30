@@ -249,12 +249,24 @@ export default function KLineChart({ code }: { code: string }) {
         }}
         style={{ marginBottom: 12 }}
       />
-      <ReactECharts
-        option={option}
-        style={{ height: 420, background: isDark ? '#18181b' : '#ffffff' }}
-        opts={{ renderer: 'svg' }}
-        notMerge
-      />
+      {/* 图表绘图区独立于卡片底色：比卡片略深（暗色）/略浅（亮色），
+          配合细边框与圆角，形成清晰的层次区分 */}
+      <div
+        style={{
+          background: isDark ? '#141417' : '#fafaf9',
+          border: `1px solid ${isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)'}`,
+          borderRadius: 10,
+          padding: 8,
+          overflow: 'hidden'
+        }}
+      >
+        <ReactECharts
+          option={option}
+          style={{ height: 420, background: 'transparent' }}
+          opts={{ renderer: 'svg' }}
+          notMerge
+        />
+      </div>
     </div>
   )
 }

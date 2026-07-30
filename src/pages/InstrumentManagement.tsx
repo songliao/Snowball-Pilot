@@ -40,8 +40,18 @@ const mixHex = (from: string, to: string, t: number): string => {
   const [r1, g1, b1] = hexToRgb(from)
   const [r2, g2, b2] = hexToRgb(to)
   const c = (a: number, b: number) => Math.round(a + (b - a) * t)
-  return `#${[c(r1, r2), c(g1, g2), c(b1, b2)].map((v) => v.toString(16).padStart(2, '0')).join('')}`
+  return `#${[c(r1, r2), c(g1, g2), c(b1, b2)]    .map((v) => v.toString(16).padStart(2, '0')).join('')}`
 }
+
+// 归一化标的代码：全角字符转半角、去除所有空白。
+// 从网页/中文输入法复制的代码常带全角句号「．」或全角字母「ＳＨ」，
+// 会被正则校验与 secid 转换当成非法字符，导致「新增标的」失败（看似编码问题，实为字符宽度）。
+const normalizeCode = (raw: string): string =>
+  (raw || '')
+    .replace(/[！-～]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xfee0)) // 全角 ！..～ → 半角
+    .replace(/[　\s]/g, '') // 删除全角/半角空格与所有空白符
+    .toUpperCase()
+    .trim()
 
 export default function InstrumentManagement() {
   const [data, setData] = useState<InstrumentRow[]>([])
@@ -224,7 +234,7 @@ export default function InstrumentManagement() {
   // 新增标的并即时补足近2年历史数据
   const handleAdd = async () => {
     const values = await addForm.validateFields()
-    const code = values.code.trim().toUpperCase()
+    const code = normalizeCode(values.code)
     setAddLoading(true)
     try {
       const result = await window.api.indexHistory.backfillCode(code, 730)
@@ -234,7 +244,8 @@ export default function InstrumentManagement() {
         addForm.resetFields()
         loadData()
       } else {
-        message.warning(`未获取到 ${code} 的行情，请检查代码是否正确（如 000852.SH）、且该标的在东方财富有数据`)
+        const reason = (result as { reason?: string }).reason
+        message.warning(reason || `未获取到 ${code} 的行情：请检查代码格式（6 位数字 + .SH/.SZ，半角）是否正确`)
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
@@ -435,7 +446,7 @@ export default function InstrumentManagement() {
               placeholder="例如 000852.SH"
               autoComplete="off"
               style={{ fontFamily: 'SFMono-Regular, Menlo, monospace' }}
-              onChange={(e) => addForm.setFieldValue('code', e.target.value.toUpperCase())}
+              onChange={(e) => addForm.setFieldValue('code', normalizeCode(e.target.value))}
             />
           </Form.Item>
         </Form>
@@ -468,6 +479,9 @@ export default function InstrumentManagement() {
         onClose={() => setDrawerCode(null)}
         closeIcon={null}
         destroyOnClose
+        // 遮罩透明：避免打开抽屉时窗口其余区域（含右上角控件/侧边栏）被压暗，
+        // 造成「亮卡片 vs 暗背景」的色差；点击外部仍可关闭
+        styles={{ mask: { background: 'transparent' } }}
       >
         {drawerCode && <KLineChart code={drawerCode} />}
       </Drawer>

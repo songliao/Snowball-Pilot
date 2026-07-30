@@ -84,7 +84,7 @@ const api = {
 
   // 登录验证
   auth: {
-    login: (username: string, password: string): Promise<{ ok: boolean; status: number; data: any; error?: string }> =>
+    login: (username: string, password: string): Promise<{ ok: boolean; status: number; data: any; error?: string; dbError?: string }> =>
       ipcRenderer.invoke('auth:login', username, password),
     // 应用启动时恢复已保存会话对应的用户数据库
     resume: (username: string): Promise<boolean> => ipcRenderer.invoke('auth:resume', username),

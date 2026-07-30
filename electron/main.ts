@@ -201,6 +201,8 @@ function createWindow(): void {
     icon: appIcon,
     frame: true,
     titleBarStyle: isMac ? 'hiddenInset' : 'hidden',
+    // Windows 使用原生标题栏覆盖层：只有系统原生最大化按钮才支持 Win11 贴靠布局（Snap Layouts）。
+    // 此前「抽屉打开按钮区变灰」的根因是 Drawer 半透明遮罩压暗周边区域，已通过透明遮罩修复。
     titleBarOverlay: isMac ? undefined : {
       color: useDark ? '#09090b' : '#f5f5f4',
       symbolColor: useDark ? '#e4e4e7' : '#333333',
@@ -378,6 +380,7 @@ app.whenReady().then(async () => {
         ensureHistoryBackfilled().catch((e) => console.error('Backfill failed:', e))
       } catch (e) {
         console.error('打开用户数据库失败：', e)
+        result.dbError = e instanceof Error ? e.message : String(e)
       }
     }
     return result

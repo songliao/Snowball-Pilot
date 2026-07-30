@@ -57,7 +57,7 @@ export default function App() {
     document.documentElement.style.background = bg
     // 暴露主题到根元素，使 Tooltip 等渲染在 body 层的浮层也能读取主题
     document.documentElement.setAttribute('data-theme', mode)
-    // 同步更新 Windows 原生窗口控制按钮颜色
+    // 同步 Windows 原生窗口控制按钮颜色（跟随应用内主题切换）
     window.api.app.updateTitlebarOverlay(
       isDark ? '#09090b' : '#f5f5f4',
       isDark ? '#e4e4e7' : '#333333'
@@ -188,9 +188,9 @@ export default function App() {
             activeShadow: 'none'
           },
           Tag: { borderRadiusSM: 5 },
-          // Drawer 背景与窗口底色保持一致，避免与标题栏/窗口控件区域产生色差
+          // Drawer 面板色与右上角控件区动画目标色保持一致（见 InstrumentManagement 的 overlay 渐变逻辑）
           Drawer: {
-            colorBgElevated: isDark ? '#09090b' : '#f5f5f4'
+            colorBgElevated: isDark ? '#1f1f23' : '#ffffff'
           }
         }
       }}

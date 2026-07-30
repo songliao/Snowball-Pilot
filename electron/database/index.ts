@@ -15,13 +15,23 @@ let SQL: any = null
 // 登出（auth:logout）则关闭当前库。不同账号的持仓 / 行情 / 自选 / 事件等数据完全不互通。
 
 // 文件名仅保留安全字符，避免路径穿越与非法文件名（Windows 不允许 \ / : * ? " < > |）
+// 同时去掉可能干扰路径解析的空白
 function safeUserFile(name: string): string {
-  const safe = name.replace(/[\\/:*?"<>|]/g, '_').trim()
+  const safe = name.replace(/[\\/:*?"<>|]/g, '_').replace(/\s+/g, '_').trim()
   return safe ? safe.slice(0, 64) : 'default'
 }
 
+// 用用户名生成「确定且纯 ASCII」的数据库文件名。
+// 之前直接用原始用户名拼接（snowball-pilot-<用户名>.db）：当用户名含中文 / 全角 / 特殊字符时，
+// 在打包后或其它用户账号环境下打开 / 写入会失败，表现为「只有部分用户新增标的报错」。
+// 改为对用户名做 base64url 编码，文件名始终合法且无编码歧义；旧命名（snowball-pilot-<safe>.db）
+// 的库在 openUserDatabase 中会被自动迁移到新命名，避免历史数据丢失。
+function encodeUserName(name: string): string {
+  return Buffer.from(name, 'utf8').toString('base64url')
+}
+
 export function getUserDbPath(username: string): string {
-  return join(app.getPath('userData'), `snowball-pilot-${safeUserFile(username)}.db`)
+  return join(app.getPath('userData'), `snowball-pilot-${encodeUserName(username)}.db`)
 }
 
 export function getCurrentUser(): string | null {
@@ -175,21 +185,27 @@ export async function openUserDatabase(username: string): Promise<void> {
 
   const targetPath = getUserDbPath(username)
 
-  // 一次性迁移：旧版单库 snowball-pilot.db 的数据归属「首个登录」的用户，
-  // 避免历史持仓在隔离改造中丢失；之后的用户各自从空库开始。
+  // 历史兼容迁移（按优先级，目标文件不存在时才进行）：
+  // 1) 上一版按「原始安全用户名」命名的库 snowball-pilot-<safe(username)>.db
+  // 2) 最初的全局单库 snowball-pilot.db（仅迁移一次，归属首个登录用户）
+  // 这样无论用户名是英文还是中文，旧数据都不会因文件名编码变化而丢失。
   if (!existsSync(targetPath)) {
+    const oldPath = join(app.getPath('userData'), `snowball-pilot-${safeUserFile(username)}.db`)
     const legacyPath = join(app.getPath('userData'), 'snowball-pilot.db')
     const rootMeta = readRootMeta()
-    if (!rootMeta.legacyMigrated && existsSync(legacyPath)) {
-      try {
+    try {
+      if (existsSync(oldPath)) {
+        copyFileSync(oldPath, targetPath)
+        console.log(`[DB] 已迁移旧命名数据库至 ${targetPath}`)
+      } else if (!rootMeta.legacyMigrated && existsSync(legacyPath)) {
         copyFileSync(legacyPath, targetPath)
         rootMeta.legacyMigrated = true
         rootMeta.legacyOwner = username
         writeRootMeta(rootMeta)
         console.log(`[DB] 旧版数据已迁移至用户「${username}」的独立数据库`)
-      } catch (e) {
-        console.error('[DB] 迁移旧版数据失败：', e)
       }
+    } catch (e) {
+      console.error('[DB] 迁移数据库失败：', e)
     }
   }
 

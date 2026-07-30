@@ -6,7 +6,7 @@
  */
 
 import { queryOne, queryAll, execute, getDatabase, saveDatabase, getMeta, setMeta } from '../database'
-import { toSecid } from './market-data'
+import { fetchKline } from './market-data'
 
 // 需要跟踪的宽基指数（仪表盘展示用）
 const TRACKED_INDICES = [
@@ -87,47 +87,16 @@ async function fetchJsonWithRetry(
 }
 
 /**
- * 从东方财富拉取日K线历史数据
- * 注意：push2his 接口返回的是「真实价格」（不乘以100），
- * 与 push2 实时接口（价格×100）不同，切勿再除以100。
+ * 从腾讯财经拉取日K线历史数据（替代东方财富，避免其 IP 限流导致新增标的失败）
  * @param code 标的代码（如 000852.SH）
  * @param days 获取条数
  */
 async function fetchKlineHistory(code: string, days = TWO_YEARS_DAYS): Promise<KlineItem[]> {
-  const secid = toSecid(code)
-  if (!secid) {
-    console.warn(`[IndexHistory] 无法识别标的代码: ${code}`)
-    return []
-  }
-  const url = `https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57&klt=101&fqt=0&end=20500101&lmt=${days}&ut=fa5fd1943c7b386f172d6893dbbd1`
-
-  // 带超时 + 重试拉取：东方财富免费接口偶发 5xx / 429 / 网络抖动会导致返回空，
-  // 重试可消化绝大多数间歇失败（Windows 下更易触发），避免误报「未获取到行情」
-  const json = await fetchJsonWithRetry(url, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
-      Referer: 'https://quote.eastmoney.com/'
-    }
-  })
-  if (!json) return []
-
-  const klines: string[] = json?.data?.klines || []
+  const klines = await fetchKline(code, days)
   if (!klines.length) {
-    console.warn(`[IndexHistory] ${code} 行情接口返回为空（secid=${secid}），可能代码无效或东方财富暂无数据`)
-    return []
+    console.warn(`[IndexHistory] ${code} 行情接口返回为空，可能代码无效或腾讯暂无数据`)
   }
-
-  return klines.map((line) => {
-    const parts = line.split(',')
-    return {
-      date: parts[0],              // 日期 yyyy-MM-dd
-      open: parseFloat(parts[1]),  // 开盘价
-      close: parseFloat(parts[2]), // 收盘价（真实价格，不除以100）
-      low: parseFloat(parts[3]),   // 最低价
-      high: parseFloat(parts[4]),  // 最高价
-      volume: parseFloat(parts[5]) // 成交量
-    }
-  }).filter((item) => item.close > 0)
+  return klines as KlineItem[]
 }
 
 /**
@@ -296,8 +265,8 @@ export async function backfillHistory(days = TWO_YEARS_DAYS, clean = false): Pro
 export async function backfillSingleCode(
   code: string,
   days = TWO_YEARS_DAYS
-): Promise<{ code: string; saved: number }> {
-  if (!code) return { code, saved: 0 }
+): Promise<{ code: string; saved: number; reason?: string }> {
+  if (!code) return { code, saved: 0, reason: '代码为空' }
   // 先拉取行情；仅当成功拿到数据后再清空并重建，
   // 避免拉取偶发失败时误删该标的已有的历史数据（如重复新增刷新场景）
   const klines = await fetchKlineHistory(code, days)
@@ -310,6 +279,13 @@ export async function backfillSingleCode(
     storeMA(code) // 批量写入后计算并存储均线
   }
   saveDatabase() // 批量写入完成后统一落盘一次
+  if (saved === 0) {
+    return {
+      code,
+      saved: 0,
+      reason: `行情接口未返回「${code}」的K线数据（可能代码格式不正确，或当前网络无法访问腾讯财经行情接口）`
+    }
+  }
   return { code, saved }
 }
 

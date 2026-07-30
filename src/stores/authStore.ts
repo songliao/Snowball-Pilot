@@ -62,6 +62,11 @@ export const useAuthStore = create<AuthState>((set, get) => {
           set({ loading: false, error: msg })
           return false
         }
+        // 远程鉴权通过，但本地用户数据库打开失败（如文件名编码问题）：不要进入主界面，直接暴露错误
+        if (result.dbError) {
+          set({ loading: false, error: `数据库打开失败：${result.dbError}` })
+          return false
+        }
         const token = result.data?.token || result.data?.data?.token || ''
         const loginTime = Date.now()
         localStorage.setItem('auth-token', token)

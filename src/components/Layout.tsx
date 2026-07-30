@@ -117,7 +117,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       <Sider
         width={224}
         style={{
-          background: isDark ? '#111113' : '#fafaf9',
+          background: isDark ? '#09090b' : '#f5f5f4',
           borderRight: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`,
           position: 'fixed',
           left: 0,
@@ -334,7 +334,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             position: 'fixed',
             top: 0,
             left: 224,
-            right: 0,
+            // 右侧让出 138px 给自绘窗口控制按钮，避免拖拽区盖住按钮导致无法点击
+            right: 138,
             height: 36,
             zIndex: 50,
             WebkitAppRegion: 'drag'
