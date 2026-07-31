@@ -513,11 +513,20 @@ export default function Dashboard() {
             当前无触发预警的合约（仅统计已存储行情快照的存续 / 已敲入合约）。
           </div>
         ) : (
-          <Row gutter={[12, 12]}>
-            {displayedAlerts.map((a) => {
+          <div
+            style={{
+              columnCount: 3,
+              columnGap: 12,
+            }}
+          >
+            {/* 按卡片高度（预警事件数）从低到高排序，配合瀑布流从左到右、从上往下紧密排布，
+                避免不同高度卡片在同一网格行中参差错乱 */}
+            {[...displayedAlerts]
+              .sort((x, y) => x.reasons.length - y.reasons.length)
+              .map((a) => {
               const sc = STRUCTURE_COLOR[a.structureType] || STRUCTURE_COLOR.snowball
               return (
-                <Col span={8} key={a.id}>
+                <div key={a.id} style={{ breakInside: 'avoid', marginBottom: 12 }}>
                   <Card
                     className="glass-card"
                     variant="borderless"
@@ -607,10 +616,10 @@ export default function Dashboard() {
                       })}
                     </div>
                   </Card>
-                </Col>
+                </div>
               )
             })}
-          </Row>
+          </div>
         )}
       </div>
     </div>
