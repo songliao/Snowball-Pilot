@@ -12,6 +12,7 @@ import {
   NotificationOutlined,
   InfoCircleOutlined,
   PieChartOutlined,
+  UserOutlined,
 } from '@ant-design/icons'
 import snowPng from '../assets/snow.png'
 import { useThemeStore } from '../stores/themeStore'
@@ -86,6 +87,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const preference = useThemeStore((s) => s.preference)
   const setPreference = useThemeStore((s) => s.setPreference)
   const isDark = mode === 'dark'
+  const username = useAuthStore((s) => s.username)
   const [addOpen, setAddOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const settingsWrapRef = useRef<HTMLDivElement>(null)
@@ -256,6 +258,26 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                 zIndex: 200
               }}
             >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '8px 8px 10px',
+                  marginBottom: 4,
+                  borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'}`
+                }}
+              >
+                <span className="nav-icon-circle nav-icon-circle--user" style={{ width: 36, height: 36, fontSize: 16, flexShrink: 0 }}>
+                  <UserOutlined />
+                </span>
+                <div style={{ overflow: 'hidden' }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: isDark ? 'rgba(244,244,245,0.92)' : 'rgba(30,30,34,0.85)', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {username || '未登录'}
+                  </div>
+                </div>
+              </div>
+
               <div style={{ padding: '4px 4px 8px' }}>
                 <div style={{ fontSize: 12, color: isDark ? 'rgba(244,244,245,0.72)' : 'rgba(30,30,34,0.5)', marginBottom: 8 }}>主题</div>
                 <Segmented

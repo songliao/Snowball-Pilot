@@ -75,6 +75,24 @@ function showAboutWindow(): void {
     logoDataUri = ''
   }
 
+  // 英文花体文案：用图片保证各平台显示一致（系统字体差异会导致花体失效）
+  const aboutEnPath = app.isPackaged
+    ? join(process.resourcesPath, 'about', 'about-en-light.png')
+    : join(__dirname, '../../resources/about/about-en-light.png')
+  const aboutEnDarkPath = app.isPackaged
+    ? join(process.resourcesPath, 'about', 'about-en-dark.png')
+    : join(__dirname, '../../resources/about/about-en-dark.png')
+
+  const toDataUri = (p: string): string => {
+    try {
+      return `data:image/png;base64,${readFileSync(p).toString('base64')}`
+    } catch {
+      return ''
+    }
+  }
+  const aboutEnLightUri = toDataUri(aboutEnPath)
+  const aboutEnDarkUri = toDataUri(aboutEnDarkPath)
+
   // 读取主窗口实际生效的主题（data-theme），与 App 显示保持一致；不可用时回退到系统暗黑判断
   const resolveDark = (): Promise<boolean> => {
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -93,6 +111,8 @@ function showAboutWindow(): void {
   resolveDark().then((dark) => {
     const bg = dark ? '#09090b' : '#f5f5f4'
     const fg = dark ? 'rgba(244,244,245,0.88)' : '#1e1e22'
+    // 英文花体文案图片：深底用浅色墨，浅底用深色墨
+    const enUri = dark ? aboutEnDarkUri : aboutEnLightUri
 
     const aboutWin = new BrowserWindow({
       width: 320,
@@ -142,7 +162,8 @@ function showAboutWindow(): void {
   h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
   .ver { font-size: 12px; opacity: 0.5; }
   .desc { font-size: 13px; line-height: 1.7; opacity: 0.7; max-width: 260px; }
-  .desc-en { margin-top: 4px; font-style: italic; font-size: 12px; opacity: 0.45; }
+  .desc-en { margin-top: 6px; height: 10px; }
+  .desc-en img { width: auto; height: 100%; border-radius: 0; image-rendering: auto; }
 </style>
 </head>
 <body>
@@ -151,7 +172,7 @@ function showAboutWindow(): void {
   <div class="ver">版本 ${app.getVersion()}</div>
   <div class="desc">
     场外衍生品投资持仓管理工具
-    <div class="desc-en">for my beloved</div>
+    <div class="desc-en"><img src="${enUri}" alt="For My Perpetual &amp; Resonant Love" /></div>
   </div>
 </body>
 </html>`

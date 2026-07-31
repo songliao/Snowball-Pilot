@@ -670,6 +670,11 @@ html, body {
   border-color: rgba(56, 189, 248, 0.24);
   color: #0284c7;
 }
+.nav-icon-circle--user {
+  background: rgba(91, 106, 191, 0.1);
+  border-color: rgba(91, 106, 191, 0.24);
+  color: #5b6abf;
+}
 [data-theme='dark'] .nav-icon-circle--ki {
   background: rgba(251, 146, 60, 0.1);
   border-color: rgba(251, 146, 60, 0.28);
@@ -694,6 +699,11 @@ html, body {
   background: rgba(56, 189, 248, 0.14);
   border-color: rgba(56, 189, 248, 0.3);
   color: #7dd3fc;
+}
+[data-theme='dark'] .nav-icon-circle--user {
+  background: rgba(129, 140, 248, 0.14);
+  border-color: rgba(129, 140, 248, 0.3);
+  color: #a5b4fc;
 }
 /* 在按钮内收紧尺寸与间距 */
 .action-btn.ant-btn .nav-icon-circle {
