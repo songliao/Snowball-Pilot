@@ -513,21 +513,37 @@ export default function Dashboard() {
             当前无触发预警的合约（仅统计已存储行情快照的存续 / 已敲入合约）。
           </div>
         ) : (
-          <Row gutter={[12, 12]}>
-            {/* 按卡片高度（预警事件数）从低到高排序，高的卡片落在后面，
-                配合行优先网格从左到右、从上往下排列，避免随机高度错落 */}
+          <div>
+            {/* 按卡片高度（预警事件数）从低到高排序，每满 3 张另起一行；
+                同一行内卡片等高对齐，行与行之间由矮到高递增 */}
             {[...displayedAlerts]
-              .sort((x, y) => x.reasons.length - y.reasons.length)
-              .map((a) => {
-              const sc = STRUCTURE_COLOR[a.structureType] || STRUCTURE_COLOR.snowball
-              return (
-                <Col span={8} key={a.id}>
+            .sort((x, y) => x.reasons.length - y.reasons.length)
+            .reduce<AlertItem[][]>((rows, a) => {
+              // 遇到比当前行首张卡片更高的卡片就另起一行：
+              // 矮卡片聚成一排，高卡片独占新行
+              const cur = rows[rows.length - 1]
+              if (!cur || cur.length > 0 && a.reasons.length > cur[0].reasons.length) {
+                rows.push([a])
+              } else {
+                cur.push(a)
+              }
+              return rows
+            }, [])
+            .map((row, ri) => (
+              <div
+                key={ri}
+                style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: ri === 0 ? 0 : 12, alignItems: 'flex-start' }}
+              >
+                {row.map((a) => {
+                  const sc = STRUCTURE_COLOR[a.structureType] || STRUCTURE_COLOR.snowball
+                  return (
+                    <div key={a.id} style={{ flex: '0 0 calc((100% - 24px) / 3)', minWidth: 0, display: 'flex' }}>
                   <Card
                     className="glass-card"
                     variant="borderless"
                     hoverable
                     onClick={() => navigate(`/positions/${a.structureType || 'snowball'}/${a.id}`, { state: { from: '/' } })}
-                    style={{ border: '1px solid rgba(248,113,113,0.28)', cursor: 'pointer' }}
+                    style={{ border: '1px solid rgba(248,113,113,0.28)', cursor: 'pointer', width: '100%' }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
                       <span
@@ -611,10 +627,12 @@ export default function Dashboard() {
                       })}
                     </div>
                   </Card>
-                </Col>
+                </div>
               )
             })}
-          </Row>
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>
