@@ -11,6 +11,7 @@ import {
   CalendarOutlined,
   NotificationOutlined,
   InfoCircleOutlined,
+  PieChartOutlined,
 } from '@ant-design/icons'
 import snowPng from '../assets/snow.png'
 import { useThemeStore } from '../stores/themeStore'
@@ -25,6 +26,7 @@ const menuItems = [
   { key: '/', icon: <span className="nav-icon-circle"><CompassOutlined /></span>, label: '总览' },
   { key: '/events', icon: <span className="nav-icon-circle"><CalendarOutlined /></span>, label: '事件日历' },
   { key: '/positions', icon: <span className="nav-icon-circle"><WalletOutlined /></span>, label: '持仓管理' },
+  { key: '/positions/analysis', icon: <span className="nav-icon-circle"><PieChartOutlined /></span>, label: '持仓分析' },
   { key: '/instruments', icon: <span className="nav-icon-circle"><FundOutlined /></span>, label: '标的管理' },
 ]
 
@@ -87,6 +89,10 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const [addOpen, setAddOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const settingsWrapRef = useRef<HTMLDivElement>(null)
+  // 持仓管理为带子菜单的父项，进入任一持仓相关路由时保持展开
+  const [openKeys, setOpenKeys] = useState<string[]>(
+    location.pathname.startsWith('/positions') ? ['/positions'] : []
+  )
 
   useEffect(() => {
     if (!settingsOpen) return
@@ -99,9 +105,14 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     return () => document.removeEventListener('mousedown', onDown)
   }, [settingsOpen])
 
-  const selectedKey = menuItems.find(
-    (item) => item.key !== '/' && location.pathname.startsWith(item.key)
-  )?.key || '/'
+  const selectedKey = (() => {
+    const matches = menuItems.filter(
+      (item) => item.key !== '/' && location.pathname.startsWith(item.key)
+    )
+    if (matches.length === 0) return '/'
+    // 取 key 最长的匹配项，避免 /positions 抢走 /positions/analysis 的高亮
+    return matches.reduce((a, b) => (b.key.length > a.key.length ? b : a)).key
+  })()
 
   // 仅凤凰持仓详情页需要更宽的内容区以容纳并排的 4 张指标卡片；雪球及其它页面保持 1100
   const currentStructure = usePositionStore((s) => s.current?.structure_type)
@@ -202,8 +213,10 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         <Menu
           mode="inline"
           selectedKeys={[selectedKey]}
+          openKeys={openKeys}
+          onOpenChange={(keys) => setOpenKeys(keys as string[])}
           items={menuItems}
-          onClick={({ key }) => navigate(key)}
+          onClick={({ key }) => navigate(key as string)}
           className="sidebar-menu"
           style={{
             background: 'transparent',

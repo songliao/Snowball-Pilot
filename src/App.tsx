@@ -10,6 +10,7 @@ import Dashboard from './pages/Dashboard'
 import Positions from './pages/Positions'
 import PositionForm from './pages/PositionForm'
 import PositionDetail from './pages/PositionDetail'
+import PositionAnalysis from './pages/PositionAnalysis'
 import AlertSettings from './pages/AlertSettings'
 
 import InstrumentManagement from './pages/InstrumentManagement'
@@ -224,6 +225,7 @@ export default function App() {
                 {/* 旧链接兜底（无 type，getById 退回先雪球后凤凰） */}
                 <Route path="/positions/:id/edit" element={<PositionForm />} />
                 <Route path="/positions/:id" element={<PositionDetail />} />
+                <Route path="/positions/analysis" element={<PositionAnalysis />} />
                 <Route path="/instruments" element={<InstrumentManagement />} />
                 <Route path="/events" element={<EventCalendar />} />
                 <Route path="/settings/alerts" element={<AlertSettings />} />

@@ -2,6 +2,7 @@ import { ipcMain } from 'electron'
 import { queryAll, queryOne, execute, getLastInsertId } from './index'
 import {
   COMMON_COLS,
+  SNOWBALL_EXTRA,
   PHOENIX_EXTRA,
   colsForType,
   tableForType,
@@ -9,19 +10,28 @@ import {
 } from './schema'
 
 const COMMON_SELECT = COMMON_COLS.join(', ')
-// 凤凰专属列在列表中也需要展示（如派息观察日 / 派息障碍），雪球行用 0/'' 占位以对齐 UNION 列数
+// 雪球专属列（敲出票息等）：雪球行取真实列，凤凰行用 0/'' 占位以对齐 UNION 列数
+const SNOWBALL_EXTRA_SELECT_SNOW = SNOWBALL_EXTRA.join(', ')
+const SNOWBALL_EXTRA_SELECT_PHOENIX = SNOWBALL_EXTRA.map((c) =>
+  (c === 'knock_out_enhance_participation' || c === 'maturity_coupon' ? '0' : "''") + ` as ${c}`
+).join(', ')
+// 凤凰专属列（派息率等）：凤凰行取真实列，雪球行用 0/'' 占位
 const PHOENIX_EXTRA_SELECT_SNOW = PHOENIX_EXTRA.map((c) =>
   (c === 'coupon_barrier' || c === 'coupon_rate' ? '0' : "''") + ` as ${c}`
 ).join(', ')
 const PHOENIX_EXTRA_SELECT_PHOENIX = PHOENIX_EXTRA.join(', ')
 
+// UNION 两行列顺序必须完全一致：COMMON + 雪球专属 + 凤凰专属 + created_at + structure_type
+const EXTRA_SELECT_SNOW = `${SNOWBALL_EXTRA_SELECT_SNOW}, ${PHOENIX_EXTRA_SELECT_SNOW}`
+const EXTRA_SELECT_PHOENIX = `${SNOWBALL_EXTRA_SELECT_PHOENIX}, ${PHOENIX_EXTRA_SELECT_PHOENIX}`
+
 export function registerPositionHandlers(): void {
   // 列表：两张表 UNION，并带上 structure_type 字面量
   ipcMain.handle('positions:get-all', () => {
     return queryAll(
-      `SELECT id, ${COMMON_SELECT}, ${PHOENIX_EXTRA_SELECT_SNOW}, created_at, 'snowball' as structure_type FROM snowball_positions
+      `SELECT id, ${COMMON_SELECT}, ${EXTRA_SELECT_SNOW}, created_at, 'snowball' as structure_type FROM snowball_positions
        UNION ALL
-       SELECT id, ${COMMON_SELECT}, ${PHOENIX_EXTRA_SELECT_PHOENIX}, created_at, 'phoenix' as structure_type FROM phoenix_positions
+       SELECT id, ${COMMON_SELECT}, ${EXTRA_SELECT_PHOENIX}, created_at, 'phoenix' as structure_type FROM phoenix_positions
        ORDER BY created_at DESC`
     )
   })

@@ -15,12 +15,12 @@ export interface PositionData {
   maturity_coupon?: number // 雪球：到期票息（百分比）
   // 敲入参数
   knock_in_observation?: string // 敲入观察方式（daily 每日 / maturity 到期）
-  knock_in_barrier?: number // 敲入障碍比例（百分比）
+  knock_in_barrier?: number // 敲入障碍比例（小数比例，如 0.75 表示 75%）
   knock_in_strike?: number // 敲入执行价比例（百分比）
   knock_in_participation?: number // 敲入参与率（百分比）
   // 保证金与最大亏损
   margin_ratio?: number // 保证金比例（百分比）
-  max_loss_pct?: number // 最大亏损（百分比）
+  max_loss_pct?: number // 最大亏损（小数比例，如 0.25 表示最大亏损 25%）
   // 雪球：终止条款
   termination_date?: string // 了结（终止）日期
   termination_payoff?: number // 了结收益（绝对金额）
@@ -248,4 +248,80 @@ export function computeKnockOutProfit(input: KnockOutProfitInput): KnockOutProfi
     fees: { absFee: feeAbs, annualFee: feeAnnual, dividend: feeDividend, total: feeTotal },
     net
   }
+}
+
+// 兼容“字符串里嵌 JSON 字符串”的双重编码形态（DB 某些字段被 JSON 化两次）
+function parseJsonField(raw: any): any {
+  let v = raw
+  for (let i = 0; i < 3; i++) {
+    if (typeof v === 'string') {
+      try { v = JSON.parse(v) } catch { break }
+    } else {
+      break
+    }
+  }
+  return v
+}
+
+function toNumberArray(raw?: any): number[] {
+  try {
+    const arr = parseJsonField(raw)
+    if (Array.isArray(arr)) return arr.map(Number).filter((n) => !Number.isNaN(n))
+  } catch {
+    // 解析失败返回空
+  }
+  return []
+}
+
+/**
+ * 估算存续合约的“预期收益”，逻辑与持仓详情页一致：
+ * - 雪球：近（今天及之后）敲出观察日的敲出净收益（含返息与各项费用）
+ * - 凤凰：最近一期派息净收益 = 名义本金 × 派息率 ×（1 - 收益分红比例）
+ * 返回 null 表示无法估算。
+ */
+export function estimateExpectedProfit(pos: PositionData): number | null {
+  if (pos.structure_type === 'phoenix') {
+    if (pos.notional == null || pos.coupon_rate == null) return null
+    return pos.notional * pos.coupon_rate * (1 - (pos.income_dividend_pct ?? 0))
+  }
+  // 雪球：今天及之后（含今天）最近的敲出观察日
+  // knock_out_dates 可能是 JSON 字符串 / 双重编码字符串 / 已解析数组，这里统一兼容
+  let dates: string[] = []
+  try {
+    const arr = parseJsonField(pos.knock_out_dates)
+    if (Array.isArray(arr)) dates = arr.map(String)
+  } catch {
+    dates = []
+  }
+  const koCoupons = toNumberArray(pos.knock_out_coupons)
+  const today = dayjs().startOf('day')
+  let nearestIdx = -1
+  let nearestDiff = Infinity
+  dates.forEach((d, i) => {
+    const date = dayjs(d).startOf('day')
+    if (date.isBefore(today)) return
+    const diff = date.diff(today, 'day')
+    if (diff < nearestDiff) {
+      nearestDiff = diff
+      nearestIdx = i
+    }
+  })
+  const nearestDate = nearestIdx >= 0 ? dates[nearestIdx] : null
+  const nearestCoupon = nearestIdx >= 0 ? koCoupons[nearestIdx] : null
+  if (pos.notional == null || !nearestDate) return null
+  const r = computeKnockOutProfit({
+    notional: pos.notional,
+    couponPct: nearestCoupon ?? 0,
+    tradeStartDate: pos.trade_start_date ?? '',
+    koObservationDate: dayjs(nearestDate).format('YYYY-MM-DD'),
+    accrualBasis: (pos.accrual_basis as 'both' | 'one') ?? 'both',
+    accrualSettleTplus: pos.accrual_settle_tplus ?? 0,
+    rebateAnnualPct: (pos.rebate_annual_pct ?? 0) / 100,
+    rebateAbsFrontPct: (pos.rebate_absolute_front_pct ?? 0) / 100,
+    rebateAbsBackPct: (pos.rebate_absolute_back_pct ?? 0) / 100,
+    absFeePct: (pos.abs_fee_pct ?? 0) / 100,
+    annualFeePct: (pos.annual_fee_pct ?? 0) / 100,
+    incomeDividendPct: (pos.income_dividend_pct ?? 0) / 100
+  })
+  return r?.net ?? null
 }
