@@ -20,18 +20,25 @@ export default function App() {
   const mode = useThemeStore((s) => s.mode)
   const isDark = mode === 'dark'
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+  const initializing = useAuthStore((s) => s.initializing)
   const loginTime = useAuthStore((s) => s.loginTime)
   const logout = useAuthStore((s) => s.logout)
   const dbReady = useAuthStore((s) => s.dbReady)
   const resume = useAuthStore((s) => s.resume)
+  const init = useAuthStore((s) => s.init)
 
-  // 启动时若本地已保存登录态（isAuthenticated 为真但数据库尚未打开），
+  // 启动时：从加密存储异步恢复登录态，解密完毕前显示加载占位
+  useEffect(() => {
+    init()
+  }, [init])
+
+  // 恢复登录态后，若本地已有凭据但数据库尚未打开，
   // 需先恢复对应用户的独立数据库，再渲染主界面，避免访问空库报错。
   useEffect(() => {
-    if (isAuthenticated && !dbReady) {
+    if (isAuthenticated && !dbReady && !initializing) {
       resume()
     }
-  }, [isAuthenticated, dbReady, resume])
+  }, [isAuthenticated, dbReady, initializing, resume])
 
   // 登录有效期为 30 天：本地记录登录时间，后台定期检查是否已过期；
   // 超过有效期则自动登出，要求重新登录（无需请求服务端校验）。
@@ -197,7 +204,21 @@ export default function App() {
       }}
     >
       <div data-theme={mode} style={{ minHeight: '100vh', background: isDark ? '#09090b' : '#f5f5f4' }}>
-        {!isAuthenticated ? (
+        {initializing ? (
+          // 启动时正在从 OS 加密存储恢复凭据，短暂占位
+          <div
+            style={{
+              minHeight: '100vh',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: isDark ? 'rgba(244,244,245,0.5)' : 'rgba(30,30,34,0.45)',
+              fontSize: 14
+            }}
+          >
+            正在加载数据…
+          </div>
+        ) : !isAuthenticated ? (
           <Login />
         ) : !dbReady ? (
           // 数据库尚未就绪（恢复会话中）：短暂占位，避免主界面访问空库

@@ -172,22 +172,23 @@ export async function fetchIndexQuote(code: string): Promise<IndexQuote | null> 
 }
 
 /**
- * 批量获取行情
+ * 批量获取行情（并发请求，Promise.all 并行）
+ * 注：腾讯免费接口限流宽松，常规标的数（<20）并发不会触发限流。
+ * 若标的数较大（50+）可改为 p-limit 控制并发上限。
  */
 export async function fetchMultiplePrices(
   codes: string[]
 ): Promise<Record<string, MarketPriceResult>> {
   const results: Record<string, MarketPriceResult> = {}
-
-  for (const code of codes) {
-    const result = await fetchMarketPrice(code)
-    if (result) {
-      results[code] = result
-    }
-    // 避免请求过快
-    await new Promise((resolve) => setTimeout(resolve, 200))
+  const entries = await Promise.all(
+    codes.map(async (code) => {
+      const result = await fetchMarketPrice(code)
+      return { code, result }
+    })
+  )
+  for (const { code, result } of entries) {
+    if (result) results[code] = result
   }
-
   return results
 }
 

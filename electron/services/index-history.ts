@@ -230,18 +230,26 @@ function needsBackfill(code: string): boolean {
 async function backfillCodes(codes: string[], days = TWO_YEARS_DAYS, clean = false): Promise<{ code: string; saved: number }[]> {
   const results: { code: string; saved: number }[] = []
   for (const code of codes) {
-    if (clean) {
-      execute('DELETE FROM price_history WHERE underlying_code = ?', [code])
-    }
-    const klines = await fetchKlineHistory(code, days)
     let saved = 0
-    for (const k of klines) {
-      if (saveClosePrice(code, k)) saved++
+    try {
+      // 先拉取行情，成功后再清空旧数据（避免拉取失败时误删已有历史）
+      const klines = await fetchKlineHistory(code, days)
+      if (clean) {
+        execute('DELETE FROM price_history WHERE underlying_code = ?', [code])
+      }
+      for (const k of klines) {
+        if (saveClosePrice(code, k)) saved++
+      }
+      storeMA(code) // 批量写入后计算并存储均线
+      saveDatabase() // 单个标的批量写入完成后统一落盘一次
+      console.log(`[IndexHistory] 补足 ${code}: ${saved} 条新记录${clean ? '（已清空旧数据）' : ''}`)
+    } catch (e) {
+      // 单个标的失败不影响其他标的：已写入内存的数据落盘保留（至少比全丢好），
+      // 下次启动时若历史不足会自动触发补足
+      try { saveDatabase() } catch { /* 落盘失败则放弃 */ }
+      console.error(`[IndexHistory] 补足 ${code} 失败：`, e)
     }
-    storeMA(code) // 批量写入后计算并存储均线
     results.push({ code, saved })
-    saveDatabase() // 单个标的批量写入完成后统一落盘一次
-    console.log(`[IndexHistory] 补足 ${code}: ${saved} 条新记录${clean ? '（已清空旧数据）' : ''}`)
     // 避免请求过快
     await sleep(500)
   }

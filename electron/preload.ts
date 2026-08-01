@@ -199,6 +199,16 @@ const api = {
       ipcRenderer.invoke('index-history:refresh'),
     get: (code: string, limit?: number): Promise<{ id: number; underlying_code: string; price: number; date: string; source: string }[]> =>
       ipcRenderer.invoke('index-history:get', code, limit)
+  },
+
+  // 安全存储：凭据在主进程经 OS 级加密后再存 localStorage
+  secureStore: {
+    /** 加密并返回 base64 密文（由调用方存入 localStorage）；加密不可用时返回 null */
+    encrypt: (plain: string): Promise<string | null> =>
+      ipcRenderer.invoke('secure-store:set', '', plain),
+    /** 解密 base64 密文返回明文；解密失败返回 null */
+    decrypt: (b64: string): Promise<string | null> =>
+      ipcRenderer.invoke('secure-store:get', '', b64)
   }
 }
 

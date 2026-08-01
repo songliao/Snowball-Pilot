@@ -60,11 +60,42 @@ export function getDatabase(): SqlJsDatabase {
   return db
 }
 
+// ——— 写盘优化：防抖合并 ———
+// 原实现每次 execute() 都做一次全库 export + writeFileSync。
+// 数据库增大后（10MB+），频繁的同步写盘会造成可感知的 UI 卡顿。
+// 改为：execute() 仅标记脏数据，延迟 300ms 内若有新的写操作则重置计时器，
+// 批量合并为一次落盘。关键路径（关闭数据库、退出应用）仍强制立即落盘不丢数据。
+let saveTimer: ReturnType<typeof setTimeout> | null = null
+let saveDirty = false
+
+/** 立即强制落盘（关闭库/退出应用等关键路径使用） */
 export function saveDatabase(): void {
+  if (saveTimer) {
+    clearTimeout(saveTimer)
+    saveTimer = null
+  }
   if (db && dbPath) {
     const data = db.export()
     writeFileSync(dbPath, Buffer.from(data))
+    saveDirty = false
   }
+}
+
+/** 标记脏数据并调度延迟落盘，多次连续调用会自动合并 */
+function scheduleSave(): void {
+  saveDirty = true
+  if (saveTimer) {
+    clearTimeout(saveTimer)
+  }
+  saveTimer = setTimeout(() => {
+    saveTimer = null
+    saveDatabase()
+  }, 300)
+}
+
+/** 强制落盘并取消待处理的延迟写（进程退出/登出前调用） */
+export function flushSave(): void {
+  saveDatabase()
 }
 
 // sql.js 运行需要加载 sql-wasm.wasm。开发模式下从 node_modules 加载；
@@ -262,7 +293,7 @@ export function execute(sql: string, params?: unknown[]): void {
   } else {
     database.run(sql)
   }
-  saveDatabase()
+  scheduleSave()
 }
 
 // 获取最后插入 ID

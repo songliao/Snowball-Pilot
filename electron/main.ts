@@ -1,8 +1,9 @@
-import { app, BrowserWindow, ipcMain, shell, net, Menu, nativeTheme } from 'electron'
+import { app, BrowserWindow, ipcMain, shell, net, Menu, nativeTheme, safeStorage } from 'electron'
 import { join } from 'path'
 import { readFileSync } from 'fs'
 import { is } from '@electron-toolkit/utils'
-import { initDatabase, openUserDatabase, closeDatabase, getCurrentUser } from './database'
+import { API_BASE_URL } from './config'
+import { initDatabase, openUserDatabase, closeDatabase, getCurrentUser, flushSave } from './database'
 import { registerPositionHandlers } from './database/positions'
 import { registerPriceHandlers } from './database/prices'
 import { registerEventHandlers } from './database/events'
@@ -299,6 +300,34 @@ app.whenReady().then(async () => {
   registerPriceHandlers()
   registerEventHandlers()
 
+  // ——— 安全存储：使用 OS 级加密保护凭据（macOS Keychain / Windows DPAPI）———
+  // 加密后以 base64 文本存回 localStorage；解密仅在主进程完成，渲染进程永不见明文。
+  const encAvail = safeStorage.isEncryptionAvailable()
+  if (!encAvail) {
+    console.warn('[secureStore] OS 级加密不可用，凭据将回退到明文存储。')
+  }
+
+  ipcMain.handle('secure-store:set', (_event, key: string, value: string) => {
+    if (!encAvail) return false
+    try {
+      const encrypted = safeStorage.encryptString(value)
+      return encrypted.toString('base64')
+    } catch (e) {
+      console.error('[secureStore] 加密失败：', e)
+      return false
+    }
+  })
+
+  ipcMain.handle('secure-store:get', (_event, key: string, encryptedB64: string) => {
+    if (!encAvail) return null
+    try {
+      const buf = Buffer.from(encryptedB64, 'base64')
+      return safeStorage.decryptString(buf)
+    } catch {
+      return null
+    }
+  })
+
   // 行情拉取
   ipcMain.handle('market:fetch-price', async (_event, code: string) => {
     return await fetchMarketPrice(code)
@@ -371,7 +400,7 @@ app.whenReady().then(async () => {
     const result: { ok: boolean; status: number; data: any; error?: string } = await new Promise((resolve) => {
       const request = net.request({
         method: 'POST',
-        url: 'http://8.159.158.153:6001/api/v1/auth/login/'
+        url: `${API_BASE_URL}/api/v1/auth/login/`
       })
       request.setHeader('Content-Type', 'application/json')
 
@@ -430,7 +459,7 @@ app.whenReady().then(async () => {
     return new Promise((resolve) => {
       const request = net.request({
         method: 'GET',
-        url: 'http://8.159.158.153:6001/api/v1/auth/login/'
+        url: `${API_BASE_URL}/api/v1/auth/login/`
       })
       request.on('response', (response) => {
         response.on('data', () => {})
@@ -477,6 +506,11 @@ app.whenReady().then(async () => {
 
   // 历史数据补足改为「登录成功后」按需执行（见 auth:login / auth:resume 处理），
   // 启动阶段尚未确定用户，不在此处无条件触发，避免访问未打开的数据库。
+})
+
+// 退出前确保所有待处理的延迟写盘已落盘，避免数据丢失
+app.on('before-quit', () => {
+  flushSave()
 })
 
 app.on('window-all-closed', () => {
