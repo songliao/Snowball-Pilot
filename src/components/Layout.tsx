@@ -25,12 +25,12 @@ import phoenixPng from '../assets/money-saving.png'
 const { Sider, Content } = Layout
 
 const menuItems = [
-  { key: '/', icon: <span className="nav-icon-circle"><CompassOutlined /></span>, label: '总览' },
-  { key: '/events', icon: <span className="nav-icon-circle"><CalendarOutlined /></span>, label: '事件日历' },
-  { key: '/positions', icon: <span className="nav-icon-circle"><WalletOutlined /></span>, label: '持仓管理' },
-  { key: '/positions/analysis', icon: <span className="nav-icon-circle"><PieChartOutlined /></span>, label: '持仓分析' },
-  { key: '/instruments', icon: <span className="nav-icon-circle"><FundOutlined /></span>, label: '标的管理' },
-  { key: '/contract-check', icon: <span className="nav-icon-circle"><SafetyCertificateOutlined /></span>, label: '合约检查' },
+  { key: '/', icon: <span className="nav-icon-circle nav-icon-circle--nav-overview"><CompassOutlined /></span>, label: '投资总览' },
+  { key: '/events', icon: <span className="nav-icon-circle nav-icon-circle--nav-events"><CalendarOutlined /></span>, label: '事件日历' },
+  { key: '/positions', icon: <span className="nav-icon-circle nav-icon-circle--nav-positions"><WalletOutlined /></span>, label: '持仓管理' },
+  { key: '/positions/analysis', icon: <span className="nav-icon-circle nav-icon-circle--nav-analysis"><PieChartOutlined /></span>, label: '持仓分析' },
+  { key: '/contract-check', icon: <span className="nav-icon-circle nav-icon-circle--nav-contract"><SafetyCertificateOutlined /></span>, label: '合约检查' },
+  { key: '/instruments', icon: <span className="nav-icon-circle nav-icon-circle--nav-instruments"><FundOutlined /></span>, label: '标的管理' },
 ]
 
 const STRUCTURE_TYPES = [
@@ -181,6 +181,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                 {STRUCTURE_TYPES.map((t) => (
                   <div
                     key={t.key}
+                    className="add-type-item"
                     onClick={() => {
                       setAddOpen(false)
                       navigate(`/positions/new?type=${t.key}`)
@@ -197,7 +198,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                     onMouseEnter={(e) => (e.currentTarget.style.background = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)')}
                     onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                   >
-                    <span className="nav-icon-circle">{t.icon}</span>
+                    <span className={`nav-icon-circle nav-icon-circle--${t.key}`}>{t.icon}</span>
                     <div style={{
                       fontSize: 13,
                       color: isDark ? 'rgba(244,244,245,0.85)' : 'rgba(30,30,34,0.85)'

@@ -688,7 +688,7 @@ function DonutCard({
   }, [data, title, isDark])
 
   const centerColor = isDark ? 'rgba(230,237,243,0.55)' : 'rgba(30,30,34,0.5)'
-  const centerValueColor = isDark ? '#e6edf3' : '#1e1e22'
+  const centerValueColor = isDark ? 'rgba(230,237,243,0.78)' : 'rgba(30,30,34,0.72)'
 
   return (
     <Card className="glass-card" variant="borderless" style={{ height: '100%' }}>

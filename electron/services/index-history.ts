@@ -100,9 +100,28 @@ async function fetchKlineHistory(code: string, days = TWO_YEARS_DAYS): Promise<K
 }
 
 /**
+ * 判断某日期是否为 A 股交易日（周末必为非交易日）。
+ * 日期字符串按 UTC 解析（'YYYY-MM-DD' 仅日期形式本就按 UTC 零点解析），
+ * 用 getUTCDay 避免本地时区偏移导致星期判断错位。
+ * 节假日虽无法在此识别，但行情接口不会返回节假日 K 线，
+ * 配合 saveDailyClose 的 latest.date === today 校验即可自然跳过。
+ */
+function isTradingDay(dateStr: string): boolean {
+  const day = new Date(dateStr).getUTCDay()
+  return day !== 0 && day !== 6 // 0=周日 6=周六
+}
+
+/**
  * 保存单条日K（开高低收+成交量）到数据库（增量写入；已存在则更新，以覆盖旧数据）
  */
 function saveClosePrice(code: string, item: KlineItem): boolean {
+  // 非交易日保护：A 股周末从不开市，任何周末日期的记录都是脏数据
+  // （历史版本曾把「上一交易日收盘价」误填成「今天日期」落库）。
+  // 此处是所有行情落库的唯一入口，在此拦截可确保任何调用路径都不会写入非交易日。
+  if (!isTradingDay(item.date)) {
+    console.warn(`[IndexHistory] 跳过非交易日行情，不落库：${code} ${item.date}`)
+    return false
+  }
   // 注意：这里只写入内存，不立即落盘；由调用方在批量写入后统一 saveDatabase()，
   // 避免每条记录都触发一次全库导出（约 730 次），否则新增标的可能卡顿十几秒。
   getDatabase().run(
@@ -154,6 +173,14 @@ export function storeMA(code: string): void {
  */
 export async function saveDailyClose(): Promise<number> {
   const today = new Date().toISOString().split('T')[0]
+
+  // 非交易日（周末）直接跳过：当天没有成交，不应拉取也不应落库，
+  // 避免把上一交易日的收盘价误填成今天的日期。
+  if (!isTradingDay(today)) {
+    console.log(`[IndexHistory] ${today} 为非交易日，跳过每日收盘保存`)
+    return 0
+  }
+
   let saved = 0
 
   for (const idx of TRACKED_INDICES) {
@@ -382,12 +409,43 @@ async function migrateMA(): Promise<void> {
 }
 
 /**
+ * 存量数据迁移：清理历史版本误写入的非交易日（周末）脏记录。
+ * 旧版本曾把「上一交易日收盘价」误填成「今天（周末）日期」落库，
+ * 产生与前一交易日价格重复、且无开高低收的周末记录，会导致
+ * 列表「更新日期」显示为周末、K 线出现多余点、均线被重复收盘价拉偏。
+ * A 股周末从不开市，故周末日期的记录可安全删除；删除后重算受影响标的的均线。
+ */
+function migrateRemoveNonTradingDays(): void {
+  if (getMeta('non_trading_days_cleaned') === '1') return
+  const bad = queryAll<{ underlying_code: string; date: string }>(
+    `SELECT underlying_code, date FROM price_history
+     WHERE CAST(strftime('%w', date) AS INTEGER) IN (0, 6)`
+  )
+  if (bad.length > 0) {
+    const codes = new Set<string>()
+    for (const r of bad) {
+      execute('DELETE FROM price_history WHERE underlying_code = ? AND date = ?', [
+        r.underlying_code,
+        r.date
+      ])
+      codes.add(r.underlying_code)
+    }
+    codes.forEach((code) => storeMA(code)) // 删除脏数据后重算均线
+    saveDatabase()
+    console.log(`[IndexHistory] 已清理 ${bad.length} 条非交易日脏记录`)
+  }
+  setMeta('non_trading_days_cleaned', '1')
+}
+
+/**
  * 启动时的补足逻辑：
  * - 首次启动（或版本升级）时，全量重建所有标的近2年历史（覆盖旧的错误数据）
  * - 之后仅在新增标的、且历史不足时按需补足，避免每次启动都打 API
  */
 export async function ensureHistoryBackfilled(): Promise<void> {
-  // 先补齐已有记录的 开/高/低/成交量（一次性）
+  // 先清理非交易日脏记录（一次性），保证后续 OHLC / MA 迁移基于干净数据
+  migrateRemoveNonTradingDays()
+  // 补齐已有记录的 开/高/低/成交量（一次性）
   await migrateOhlc()
   // 补齐均线（一次性，独立于 OHLC 迁移）
   await migrateMA()

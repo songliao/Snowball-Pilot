@@ -122,7 +122,7 @@ export default function AlertSettings() {
         <span style={{ opacity: 0.7 }}>
           以下阈值用于<strong>总览页「合约预警」</strong>区块的触发判定。调整参数后，右侧将实时预览当前会触发的预警。
         </span>
-        <Button icon={<EyeOutlined />} onClick={() => navigate('/')} style={{ height: 32, fontWeight: 500 }}>
+        <Button className="toolbar-btn" icon={<EyeOutlined />} onClick={() => navigate('/')}>
           前往总览查看
         </Button>
       </div>
@@ -196,9 +196,9 @@ export default function AlertSettings() {
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <Space>
                 <Popconfirm title="恢复为默认设置？" onConfirm={onReset} okText="恢复" cancelText="取消">
-                  <Button icon={<ReloadOutlined />} style={{ height: 32, fontWeight: 500 }}>恢复默认</Button>
+                  <Button className="toolbar-btn" icon={<ReloadOutlined />}>恢复默认</Button>
                 </Popconfirm>
-                <Button icon={<SaveOutlined />} loading={saving} onClick={onSave} style={{ height: 32, fontWeight: 500 }}>
+                <Button className="toolbar-btn" icon={<span className="nav-icon-circle nav-icon-circle--refresh"><SaveOutlined /></span>} loading={saving} onClick={onSave}>
                   保存
                 </Button>
               </Space>

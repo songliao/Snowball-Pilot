@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import {
-  Card, Tag, Button, Space, message, Row, Col, Popconfirm, Modal, DatePicker, InputNumber
+  Card, Tag, Button, Space, message, Row, Col, Popconfirm, Modal, DatePicker, InputNumber, Spin, Result
 } from 'antd'
 import {
   ArrowLeftOutlined, EditOutlined, SyncOutlined,
   WarningOutlined, DollarOutlined, ClockCircleOutlined, RollbackOutlined,
-  PlusOutlined, GiftOutlined, BarChartOutlined, ProfileOutlined
+  PlusOutlined, GiftOutlined, BarChartOutlined, ProfileOutlined, CheckOutlined
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { usePositionStore } from '../stores/positionStore'
@@ -42,9 +42,19 @@ export default function PositionDetail() {
   const [couponModalOpen, setCouponModalOpen] = useState(false)
   const [couponDate, setCouponDate] = useState<dayjs.Dayjs | null>(dayjs())
   const [couponAmount, setCouponAmount] = useState<number | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (id) fetchById(Number(id), type)
+    if (!id) return
+    setLoading(true)
+    setError(null)
+    fetchById(Number(id), type)
+      .then(() => setLoading(false))
+      .catch((e: unknown) => {
+        setLoading(false)
+        setError(e instanceof Error ? e.message : String(e))
+      })
   }, [id])
 
   useEffect(() => {
@@ -54,11 +64,40 @@ export default function PositionDetail() {
     }
   }, [current])
 
-  if (!current) return null
+  const priceSeries = useMemo(
+    () => (current?.underlying_code ? prices[current.underlying_code] || [] : []),
+    [current, prices]
+  )
+  const tradingDays = useMemo(() => new Set(priceSeries.map((p) => dayjs(p.date).format('YYYY-MM-DD'))), [priceSeries])
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 300, flexDirection: 'column', gap: 16 }}>
+        <Spin size="large" />
+        <span style={{ color: 'rgba(0,0,0,0.45)', fontSize: 14 }}>加载中...</span>
+      </div>
+    )
+  }
+
+  if (error || !current) {
+    return (
+      <Result
+        status="error"
+        title="加载失败"
+        subTitle={error || '未找到该持仓数据'}
+        extra={
+          <Button type="primary" onClick={() => navigate(-1)}>
+            返回
+          </Button>
+        }
+      />
+    )
+  }
 
   const pos = current
+  const today = dayjs().startOf('day')
   const currentPrice = latestPrices[pos.underlying_code]
-  const priceSeries = prices[pos.underlying_code] || []
+  const disabledDate = (d: dayjs.Dayjs) => d.isAfter(today, 'day') || !tradingDays.has(d.format('YYYY-MM-DD'))
   const changePct = (() => {
     if (priceSeries.length >= 2) {
       const last = priceSeries[priceSeries.length - 1]
@@ -73,7 +112,6 @@ export default function PositionDetail() {
   const koBarriers = pos.knock_out_barriers ? (JSON.parse(pos.knock_out_barriers) as number[]) : []
   const koCoupons = pos.knock_out_coupons ? (JSON.parse(pos.knock_out_coupons) as number[]) : []
   // 今天及之后（含今天）最近的敲出观察日，及其对应障碍价与票息；过去的观察日不计入
-  const today = dayjs().startOf('day')
   let nearestKoIdx = -1
   let nearestKoDiff = Infinity
   koDates.forEach((d, i) => {
@@ -294,10 +332,17 @@ export default function PositionDetail() {
           </div>
         </Space>
         <Space>
-          {/* 敲入 / 已敲入：互斥，共用第一个位置槽，保证后续按钮位置固定 */}
+          <Button
+            className="action-btn"
+            icon={<span className="nav-icon-circle nav-icon-circle--diagram">{flipped ? <ProfileOutlined /> : <BarChartOutlined />}</span>}
+            onClick={() => setFlipped((v) => !v)}
+          >
+            {flipped ? '合约详情' : '点位图示'}
+          </Button>
+          {/* 敲入 / 已敲入：互斥，共用同一个位置槽，保证后续按钮位置固定 */}
           {(pos.status === 'active' || pos.status === 'knocked_out' || pos.status === 'matured') && !pos.is_ki && (
             <Button
-              className="action-btn action-btn--ki"
+              className="action-btn"
               icon={<span className="nav-icon-circle nav-icon-circle--ki"><WarningOutlined /></span>}
               onClick={() => {
                 setKiDate(dayjs())
@@ -312,6 +357,8 @@ export default function PositionDetail() {
               title="确认撤销敲入？"
               description="将清空敲入状态与敲入日期"
               onConfirm={handleRevokeKnockIn}
+              okText="确认撤销"
+              cancelText="取消"
             >
               <Button className="action-btn action-btn--kied" icon={<span className="nav-icon-circle nav-icon-circle--kied"><RollbackOutlined /></span>}>
                 敲入于{pos.knock_in_date ? formatDate(pos.knock_in_date) : ''}
@@ -320,7 +367,7 @@ export default function PositionDetail() {
           )}
           {pos.structure_type === 'phoenix' && (
             <Button
-              className="action-btn action-btn--coupon"
+              className="action-btn"
               icon={<span className="nav-icon-circle nav-icon-circle--coupon"><GiftOutlined /></span>}
               onClick={() => { setCouponDate(dayjs()); setCouponAmount(null); setCouponModalOpen(true) }}
             >
@@ -329,7 +376,7 @@ export default function PositionDetail() {
           )}
           {(pos.status === 'active' || pos.status === 'knocked_in') && (
             <Button
-              className="action-btn action-btn--ko"
+              className="action-btn"
               icon={<span className="nav-icon-circle nav-icon-circle--ko"><DollarOutlined /></span>}
               onClick={() => {
                 setEndAction('knocked_out')
@@ -341,17 +388,10 @@ export default function PositionDetail() {
               标记敲出
             </Button>
           )}
-          <Button
-            className="action-btn"
-            icon={<span className="nav-icon-circle nav-icon-circle--diagram">{flipped ? <ProfileOutlined /> : <BarChartOutlined />}</span>}
-            onClick={() => setFlipped((v) => !v)}
-          >
-            {flipped ? '合约详情' : '点位图示'}
-          </Button>
           {(pos.status === 'active' || pos.status === 'knocked_in') && (
             <Button
               className="action-btn"
-              icon={<span className="nav-icon-circle"><ClockCircleOutlined /></span>}
+              icon={<span className="nav-icon-circle nav-icon-circle--maturity"><ClockCircleOutlined /></span>}
               onClick={() => {
                 setEndAction('matured')
                 setEndDate(dayjs())
@@ -367,6 +407,8 @@ export default function PositionDetail() {
               title="确认撤销了结？"
               description="将恢复至敲入/存续状态，并清除了结日期与收益"
               onConfirm={handleRevokeEnd}
+              okText="确认撤销"
+              cancelText="取消"
             >
               <Button
                 className="action-btn"
@@ -376,7 +418,7 @@ export default function PositionDetail() {
               </Button>
             </Popconfirm>
           )}
-          <Button className="action-btn" icon={<span className="nav-icon-circle"><EditOutlined /></span>} onClick={() => navigate(`/positions/${pos.structure_type}/${pos.id}/edit`, { state: { from: `/positions/${pos.structure_type}/${pos.id}` } })}>
+          <Button className="action-btn" icon={<span className="nav-icon-circle nav-icon-circle--edit"><EditOutlined /></span>} onClick={() => navigate(`/positions/${pos.structure_type}/${pos.id}/edit`, { state: { from: `/positions/${pos.structure_type}/${pos.id}` } })}>
             编辑合约
           </Button>
         </Space>
@@ -677,11 +719,14 @@ export default function PositionDetail() {
       <Modal
         title="标记为已敲入"
         open={kiModalOpen}
-        onOk={handleKiConfirm}
         onCancel={() => setKiModalOpen(false)}
-        okText="确认"
-        cancelText="取消"
         destroyOnClose
+        footer={
+          <Space>
+            <Button className="toolbar-btn" icon={<span className="nav-icon-circle"><RollbackOutlined /></span>} onClick={() => setKiModalOpen(false)}>取消</Button>
+            <Button className="toolbar-btn" icon={<span className="nav-icon-circle nav-icon-circle--refresh"><CheckOutlined /></span>} onClick={handleKiConfirm}>确认</Button>
+          </Space>
+        }
       >
         <div style={{ marginBottom: 8, opacity: 0.6 }}>请选择敲入日期：</div>
         <DatePicker
@@ -689,17 +734,21 @@ export default function PositionDetail() {
           onChange={(d) => setKiDate(d)}
           style={{ width: '100%' }}
           allowClear={false}
+          disabledDate={disabledDate}
         />
       </Modal>
 
       <Modal
         title={endAction === 'knocked_out' ? '标记为已敲出' : '标记为已到期'}
         open={endModalOpen}
-        onOk={handleEndConfirm}
         onCancel={() => setEndModalOpen(false)}
-        okText="确认"
-        cancelText="取消"
         destroyOnClose
+        footer={
+          <Space>
+            <Button className="toolbar-btn" icon={<span className="nav-icon-circle"><RollbackOutlined /></span>} onClick={() => setEndModalOpen(false)}>取消</Button>
+            <Button className="toolbar-btn" icon={<span className="nav-icon-circle nav-icon-circle--refresh"><CheckOutlined /></span>} onClick={handleEndConfirm}>确认</Button>
+          </Space>
+        }
       >
         <div style={{ marginBottom: 8, opacity: 0.6 }}>请选择了结日期：</div>
         <DatePicker
@@ -707,6 +756,7 @@ export default function PositionDetail() {
           onChange={(d) => setEndDate(d)}
           style={{ width: '100%', marginBottom: 16 }}
           allowClear={false}
+          disabledDate={disabledDate}
         />
         <div style={{ marginBottom: 8, opacity: 0.6 }}>收益结算（绝对金额）：</div>
         <InputNumber
@@ -725,11 +775,14 @@ export default function PositionDetail() {
       <Modal
         title="记录派息"
         open={couponModalOpen}
-        onOk={handleCouponConfirm}
         onCancel={() => setCouponModalOpen(false)}
-        okText="保存"
-        cancelText="取消"
         destroyOnClose
+        footer={
+          <Space>
+            <Button className="toolbar-btn" icon={<span className="nav-icon-circle"><RollbackOutlined /></span>} onClick={() => setCouponModalOpen(false)}>取消</Button>
+            <Button className="toolbar-btn" icon={<span className="nav-icon-circle nav-icon-circle--refresh"><CheckOutlined /></span>} onClick={handleCouponConfirm}>保存</Button>
+          </Space>
+        }
       >
         <div style={{ marginBottom: 8, opacity: 0.6 }}>派息支付日：</div>
         <DatePicker
@@ -737,6 +790,7 @@ export default function PositionDetail() {
           onChange={(d) => setCouponDate(d)}
           style={{ width: '100%' }}
           allowClear={false}
+          disabledDate={disabledDate}
         />
         <div style={{ marginBottom: 8, opacity: 0.6, marginTop: 16 }}>派息金额（元）：</div>
         <InputNumber

@@ -8,7 +8,9 @@ import {
   PlusOutlined,
   StarOutlined,
   StarFilled,
-  HistoryOutlined
+  HistoryOutlined,
+  RollbackOutlined,
+  CheckOutlined
 } from '@ant-design/icons'
 import KLineChart from '../components/KLineChart'
 import { useThemeStore } from '../stores/themeStore'
@@ -391,9 +393,8 @@ export default function InstrumentManagement() {
         <h2 style={{ margin: 0 }}>标的管理</h2>
         <Space align="center">
           <Button
-            type="primary"
-            style={{ height: 31 }}
-            icon={<PlusOutlined />}
+            className="toolbar-btn"
+            icon={<span className="nav-icon-circle nav-icon-circle--add"><PlusOutlined /></span>}
             onClick={() => setAddOpen(true)}
           >
             新增标的
@@ -402,7 +403,7 @@ export default function InstrumentManagement() {
             styles={{ root: tooltipRootStyle, body: tooltipBodyStyle }}
             title="重新拉取并覆盖全部标的近 2 年的完整历史行情数据（耗时较长，会覆盖已有记录）"
           >
-            <Button style={{ height: 31, fontWeight: 500 }} icon={<HistoryOutlined spin={backfilling} />} loading={backfilling} onClick={handleBackfill}>
+            <Button className="toolbar-btn" icon={<span className="nav-icon-circle nav-icon-circle--history"><HistoryOutlined spin={backfilling} /></span>} loading={backfilling} onClick={handleBackfill}>
               补足历史数据
             </Button>
           </Tooltip>
@@ -410,7 +411,7 @@ export default function InstrumentManagement() {
             styles={{ root: tooltipRootStyle, body: tooltipBodyStyle }}
             title="增量补足各标的缺失的至今天的收盘数据，不重建全量历史（仅补充缺口，已有数据不动）"
           >
-            <Button style={{ height: 31, fontWeight: 500 }} icon={<ReloadOutlined spin={refreshing} />} loading={refreshing} onClick={handleRefresh}>
+            <Button className="toolbar-btn" icon={<span className="nav-icon-circle nav-icon-circle--refresh"><ReloadOutlined spin={refreshing} /></span>} loading={refreshing} onClick={handleRefresh}>
               更新
             </Button>
           </Tooltip>
@@ -420,12 +421,14 @@ export default function InstrumentManagement() {
       <Modal
         title="新增标的"
         open={addOpen}
-        onOk={handleAdd}
-        confirmLoading={addLoading}
         onCancel={() => setAddOpen(false)}
-        okText="新增并补足历史"
-        cancelText="取消"
         destroyOnClose
+        footer={
+          <Space>
+            <Button className="toolbar-btn" icon={<span className="nav-icon-circle"><RollbackOutlined /></span>} onClick={() => setAddOpen(false)}>取消</Button>
+            <Button className="toolbar-btn" icon={<span className="nav-icon-circle nav-icon-circle--refresh"><CheckOutlined /></span>} loading={addLoading} onClick={handleAdd}>新增并补足历史</Button>
+          </Space>
+        }
       >
         <p className="instrument-hint" style={{ marginTop: 0 }}>
           输入标的代码后，将自动拉取并补足其近 2 年历史行情数据。

@@ -34,8 +34,15 @@ export const usePositionStore = create<PositionState>((set, get) => ({
   },
 
   fetchById: async (id: number, structureType?: string) => {
-    const current = await window.api.positions.getById(id, structureType)
-    set({ current })
+    set({ loading: true })
+    try {
+      const current = await window.api.positions.getById(id, structureType)
+      if (!current) throw new Error(`未找到该持仓 (id=${id})`)
+      set({ current, loading: false })
+    } catch (e) {
+      set({ current: null, loading: false })
+      throw e
+    }
   },
 
   create: async (data) => {

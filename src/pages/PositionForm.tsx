@@ -12,7 +12,9 @@ import {
   RedoOutlined,
   CalculatorOutlined,
   GiftOutlined,
-  EditOutlined
+  EditOutlined,
+  CheckOutlined,
+  RollbackOutlined
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { usePositionStore } from '../stores/positionStore'
@@ -85,7 +87,7 @@ export default function PositionForm({ readOnly = false, bare = false }: { readO
   const koCouponsCount = parseNumberList(Form.useWatch('knock_out_coupons', form)).length
   const couponDatesCount = parseDateList(Form.useWatch('coupon_dates', form)).length
   const { token } = theme.useToken()
-  const { create, update } = usePositionStore()
+  const { create, update, current } = usePositionStore()
   const [underlyingOptions, setUnderlyingOptions] = useState<{ label: string; value: string }[]>([])
 
   useEffect(() => {
@@ -681,13 +683,13 @@ export default function PositionForm({ readOnly = false, bare = false }: { readO
         </div>
         <Space style={{ marginTop: 18 }}>
           {readOnly ? (
-            <Button type="primary" style={{ width: 96, height: 31 }} onClick={() => navigate(`/positions/${current?.structure_type}/${id}/edit`, { state: { from: `/positions/${current?.structure_type}/${id}` } })}>
+            <Button className="toolbar-btn" icon={<span className="nav-icon-circle nav-icon-circle--edit"><EditOutlined /></span>} onClick={() => navigate(`/positions/${current?.structure_type}/${id}/edit`, { state: { from: `/positions/${current?.structure_type}/${id}` } })}>
               编辑
             </Button>
           ) : (
             <>
-              <Button style={{ width: 96, height: 31 }} onClick={() => navigate(-1)}>取消</Button>
-              <Button type="primary" style={{ width: 96, height: 31 }} loading={saving} onClick={() => form.submit()}>
+              <Button className="toolbar-btn" icon={<span className="nav-icon-circle"><RollbackOutlined /></span>} onClick={() => navigate(-1)}>取消</Button>
+              <Button className="toolbar-btn" icon={<span className="nav-icon-circle nav-icon-circle--refresh"><CheckOutlined /></span>} loading={saving} onClick={() => form.submit()}>
                 保存
               </Button>
             </>

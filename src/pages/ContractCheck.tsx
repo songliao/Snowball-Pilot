@@ -26,7 +26,25 @@ interface MissedCoupon {
   closePrice: number
 }
 
-type MissedItem = MissedKo | MissedCoupon
+interface FalseKo {
+  type: 'false_ko'
+  position: PositionData
+  date: string
+  barrier: number
+  barrierPrice: number
+  closePrice: number
+}
+
+interface FalseCoupon {
+  type: 'false_coupon'
+  position: PositionData
+  date: string
+  barrier: number
+  barrierPrice: number
+  closePrice: number
+}
+
+type MissedItem = MissedKo | MissedCoupon | FalseKo | FalseCoupon
 
 const STRUCTURE_LABEL: Record<string, string> = { snowball: '雪球', phoenix: '凤凰' }
 
@@ -137,6 +155,79 @@ export default function ContractCheck() {
         }
       }
 
+      // 误记敲出 + 误记派息检查（遍历全部合约）
+      for (const pos of all) {
+        const initialPrice = pos.initial_price
+        if (initialPrice == null) continue
+        const sortedPrices = await getPrices(pos.underlying_code)
+        if (!sortedPrices.length) continue
+
+        // 误记敲出：已敲出合约，但所有敲出观察日收盘价均未达标
+        if (pos.status === 'knocked_out') {
+          let koDates: string[] = [], koBarriers: number[] = []
+          try {
+            koDates = pos.knock_out_dates ? JSON.parse(pos.knock_out_dates) : []
+            koBarriers = pos.knock_out_barriers ? JSON.parse(pos.knock_out_barriers) : []
+          } catch { /* skip */ }
+
+          if (koDates.length > 0) {
+            let anyMet = false
+            let latestRef: { date: string; barrier: number; barrierPrice: number; closePrice: number } | null = null
+
+            for (let i = 0; i < koDates.length; i++) {
+              const koDate = dayjs(koDates[i]).startOf('day')
+              if (!koDate.isValid() || !koDate.isBefore(today)) continue
+              const barrierPct = koBarriers[i] ?? koBarriers[koBarriers.length - 1]
+              if (barrierPct == null) continue
+              const barrierPrice = initialPrice * (barrierPct / 100)
+              const closePrice = findClosePrice(sortedPrices, koDate)
+              if (closePrice == null) continue
+
+              if (!latestRef || dayjs(koDates[i]).isAfter(dayjs(latestRef.date))) {
+                latestRef = { date: koDates[i], barrier: barrierPct, barrierPrice, closePrice }
+              }
+
+              if (closePrice >= barrierPrice) {
+                anyMet = true
+                break
+              }
+            }
+
+            if (!anyMet && latestRef) {
+              missed.push({ type: 'false_ko', position: pos, ...latestRef })
+            }
+          }
+        }
+
+        // 误记派息：已记录派息但当日收盘价未达 barrier
+        if (pos.structure_type === 'phoenix') {
+          const couponBarrier = pos.coupon_barrier
+          if (couponBarrier == null) continue
+          let paymentDates: string[] = []
+          try {
+            paymentDates = pos.coupon_payment_dates ? JSON.parse(pos.coupon_payment_dates) : []
+          } catch { continue }
+
+          for (const dateStr of paymentDates) {
+            const pd = dayjs(dateStr).startOf('day')
+            if (!pd.isValid() || !pd.isBefore(today)) continue
+            const closePrice = findClosePrice(sortedPrices, pd)
+            if (closePrice == null) continue
+            const barrierPrice = initialPrice * couponBarrier
+            if (closePrice < barrierPrice) {
+              missed.push({
+                type: 'false_coupon',
+                position: pos,
+                date: dateStr,
+                barrier: couponBarrier * 100,
+                barrierPrice,
+                closePrice,
+              })
+            }
+          }
+        }
+      }
+
       setResultsAndSave(missed)
       setCheckedAndSave(true)
 
@@ -145,9 +236,13 @@ export default function ContractCheck() {
       } else {
         const koCount = missed.filter((m) => m.type === 'ko').length
         const cpCount = missed.filter((m) => m.type === 'coupon').length
+        const fkoCount = missed.filter((m) => m.type === 'false_ko').length
+        const fcpCount = missed.filter((m) => m.type === 'false_coupon').length
         const parts: string[] = []
         if (koCount) parts.push(`${koCount} 个遗漏敲出`)
         if (cpCount) parts.push(`${cpCount} 个遗漏派息`)
+        if (fkoCount) parts.push(`${fkoCount} 个误记敲出`)
+        if (fcpCount) parts.push(`${fcpCount} 个误记派息`)
         message.warning(`发现 ${parts.join('、')}`)
       }
     } catch (e) {
@@ -202,7 +297,7 @@ export default function ContractCheck() {
       render: (_: any, r: MissedItem) => (
         <span>
           <span style={{ fontSize: 11, opacity: 0.5, marginRight: 4 }}>
-            {r.type === 'ko' ? '敲出' : '派息'}
+            {r.type === 'ko' || r.type === 'false_ko' ? '敲出' : '派息'}
           </span>
           {r.barrierPrice.toFixed(2)}
           <span style={{ fontSize: 11, opacity: 0.4, marginLeft: 4 }}>{r.barrier.toFixed(2)}%</span>
@@ -214,9 +309,12 @@ export default function ContractCheck() {
       dataIndex: 'closePrice',
       key: 'close',
       width: 95,
-      render: (v: number) => (
-        <span style={{ color: '#22c55e', fontWeight: 600 }}>{v.toFixed(2)}</span>
-      )
+      render: (v: number, _: any, r: MissedItem) => {
+        const isFalse = r.type === 'false_ko' || r.type === 'false_coupon'
+        return (
+          <span style={{ color: isFalse ? '#ef4444' : '#22c55e', fontWeight: 600 }}>{v.toFixed(2)}</span>
+        )
+      }
     },
     {
       title: '合约状态',
@@ -245,6 +343,8 @@ export default function ContractCheck() {
 
   const koResults = useMemo(() => results.filter((r) => r.type === 'ko'), [results])
   const couponResults = useMemo(() => results.filter((r) => r.type === 'coupon'), [results])
+  const falseKoResults = useMemo(() => results.filter((r) => r.type === 'false_ko'), [results])
+  const falseCouponResults = useMemo(() => results.filter((r) => r.type === 'false_coupon'), [results])
 
   const mutedText = isDark ? 'rgba(244,244,245,0.5)' : 'rgba(30,30,34,0.5)'
 
@@ -255,11 +355,10 @@ export default function ContractCheck() {
       </div>
       <div style={{ marginBottom: 16 }}>
         <Button
-          type="primary"
-          icon={<SearchOutlined />}
+          className="toolbar-btn"
+          icon={<span className="nav-icon-circle nav-icon-circle--add"><SearchOutlined /></span>}
           loading={checking}
           onClick={runCheck}
-          style={{ height: 32, fontWeight: 500 }}
         >
           开始检查
         </Button>
@@ -270,8 +369,8 @@ export default function ContractCheck() {
           <Empty
             description={
               <span style={{ color: mutedText }}>
-                点击「开始检查」扫描所有存续中的合约，<br />
-                自动比对历史价格与障碍价，发现遗漏的敲出/派息信号
+                点击「开始检查」扫描所有合约，<br />
+                自动比对历史价格与障碍价，发现遗漏/误记的敲出与派息信号
               </span>
             }
           />
@@ -285,7 +384,7 @@ export default function ContractCheck() {
         <Card className="glass-card" variant="borderless">
           <Empty
             image={<ExclamationCircleOutlined style={{ fontSize: 48, color: '#22c55e' }} />}
-            description="所有合约状态正常，无遗漏敲出或派息信号"
+            description="所有合约状态正常，无遗漏或误记的敲出/派息信号"
           />
         </Card>
       ) : (
@@ -308,7 +407,7 @@ export default function ContractCheck() {
             </Card>
           )}
           {couponResults.length > 0 && (
-            <Card className="glass-card" variant="borderless">
+            <Card className="glass-card" variant="borderless" style={{ marginBottom: 16 }}>
               <div style={{ marginBottom: 12, fontSize: 13, color: mutedText }}>
                 <Tag color="blue" style={{ marginRight: 8 }}>遗漏派息</Tag>
                 共 <span style={{ color: '#ef4444', fontWeight: 600 }}>{couponResults.length}</span> 条：
@@ -318,6 +417,40 @@ export default function ContractCheck() {
                 dataSource={couponResults}
                 columns={columns}
                 rowKey={(r) => `cp-${r.position.id}-${r.date}`}
+                size="middle"
+                pagination={false}
+                scroll={{ x: 850 }}
+              />
+            </Card>
+          )}
+          {falseKoResults.length > 0 && (
+            <Card className="glass-card" variant="borderless" style={{ marginBottom: 16 }}>
+              <div style={{ marginBottom: 12, fontSize: 13, color: mutedText }}>
+                <Tag color="red" style={{ marginRight: 8 }}>误记敲出</Tag>
+                共 <span style={{ color: '#ef4444', fontWeight: 600 }}>{falseKoResults.length}</span> 条：
+                以下合约已标记为敲出，但所有敲出观察日收盘价均未达到障碍价
+              </div>
+              <Table
+                dataSource={falseKoResults}
+                columns={columns}
+                rowKey={(r) => `fko-${r.position.id}-${r.date}`}
+                size="middle"
+                pagination={false}
+                scroll={{ x: 850 }}
+              />
+            </Card>
+          )}
+          {falseCouponResults.length > 0 && (
+            <Card className="glass-card" variant="borderless">
+              <div style={{ marginBottom: 12, fontSize: 13, color: mutedText }}>
+                <Tag color="orange" style={{ marginRight: 8 }}>误记派息</Tag>
+                共 <span style={{ color: '#ef4444', fontWeight: 600 }}>{falseCouponResults.length}</span> 条：
+                以下派息日已记录派息，但当日收盘价未达到派息障碍价
+              </div>
+              <Table
+                dataSource={falseCouponResults}
+                columns={columns}
+                rowKey={(r) => `fcp-${r.position.id}-${r.date}`}
                 size="middle"
                 pagination={false}
                 scroll={{ x: 850 }}
