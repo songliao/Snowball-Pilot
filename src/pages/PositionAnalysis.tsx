@@ -753,7 +753,7 @@ function PositionAnalysis() {
 
   return (
     <div>
-      <div className="page-header" style={{ marginBottom: 8, marginTop: 3 }}>
+      <div className="page-header" style={{ marginBottom: 8 }}>
         <h2 style={{ margin: 0 }}>持仓分析</h2>
       </div>
 

@@ -53,8 +53,8 @@ const STRUCTURE_LABEL: Record<string, string> = {
 }
 // 结构类型 → 标签配色（文字色 / 背景色）
 const STRUCTURE_COLOR: Record<string, { color: string; bg: string }> = {
-  snowball: { color: '#38bdf8', bg: 'rgba(56,189,248,0.16)' },
-  phoenix: { color: '#f59e0b', bg: 'rgba(245,158,11,0.16)' }
+  snowball: { color: '#7c3aed', bg: 'rgba(176,124,255,0.18)' },
+  phoenix: { color: '#c2410c', bg: 'rgba(255,143,60,0.18)' }
 }
 
 // 轻量自绘月历：紧凑、无多余留白，事件可点击跳转
@@ -256,19 +256,9 @@ export default function EventCalendar() {
     <div>
       <div
         className="page-header"
-        style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 12 }}
+        style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 12, marginBottom: 8 }}
       >
         <h2 style={{ margin: 0 }}>事件日历</h2>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: 12 }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ width: 10, height: 10, borderRadius: 3, background: '#22c55e' }} />
-            敲出观察
-          </span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ width: 10, height: 10, borderRadius: 3, background: '#3b82f6' }} />
-            派息观察
-          </span>
-        </div>
       </div>
 
       {/* 三列：日历 | 当月敲出事件 | 当月派息事件 */}
@@ -278,7 +268,7 @@ export default function EventCalendar() {
           gridTemplateColumns: '320px 1fr 1fr',
           gap: 16,
           alignItems: 'start',
-          marginTop: 4
+          marginTop: 0
         }}
       >
         <div className="glass-card content-card" style={{ marginBottom: 0, padding: 12 }}>

@@ -386,10 +386,10 @@ export default function InstrumentManagement() {
     <div>
       <div
         className="page-header"
-        style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 12 }}
+        style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}
       >
         <h2 style={{ margin: 0 }}>标的管理</h2>
-        <Space align="center" style={{ marginTop: -3 }}>
+        <Space align="center">
           <Button
             type="primary"
             style={{ height: 31 }}

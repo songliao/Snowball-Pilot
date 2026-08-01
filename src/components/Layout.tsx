@@ -13,6 +13,7 @@ import {
   InfoCircleOutlined,
   PieChartOutlined,
   UserOutlined,
+  SafetyCertificateOutlined,
 } from '@ant-design/icons'
 import snowPng from '../assets/snow.png'
 import { useThemeStore } from '../stores/themeStore'
@@ -29,6 +30,7 @@ const menuItems = [
   { key: '/positions', icon: <span className="nav-icon-circle"><WalletOutlined /></span>, label: '持仓管理' },
   { key: '/positions/analysis', icon: <span className="nav-icon-circle"><PieChartOutlined /></span>, label: '持仓分析' },
   { key: '/instruments', icon: <span className="nav-icon-circle"><FundOutlined /></span>, label: '标的管理' },
+  { key: '/contract-check', icon: <span className="nav-icon-circle"><SafetyCertificateOutlined /></span>, label: '合约检查' },
 ]
 
 const STRUCTURE_TYPES = [

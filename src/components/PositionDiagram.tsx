@@ -2,7 +2,7 @@ import { useMemo, useRef, useEffect } from 'react'
 import ReactECharts from 'echarts-for-react'
 import dayjs from 'dayjs'
 import { useThemeStore } from '../stores/themeStore'
-import type { PositionData } from '../utils/calc'
+import type { PositionData, PriceData } from '../utils/calc'
 
 function parseNumArray(s?: string): number[] {
   if (!s) return []
@@ -26,13 +26,14 @@ function parseDateArray(s?: string): string[] {
 interface Props {
   pos: PositionData
   currentPrice?: number
+  priceHistory?: PriceData[]
 }
 
 /**
  * 合约实时点位图示：横轴为起息日 → 最后一个敲出观察日（含当前日期），
  * 纵轴为价格点位，标注期初价、敲入/敲出/派息障碍价，并用一个点表示当前日期与现价。
  */
-export default function PositionDiagram({ pos, currentPrice }: Props) {
+export default function PositionDiagram({ pos, currentPrice, priceHistory }: Props) {
   const chartRef = useRef<any>(null)
   const chartWrapRef = useRef<HTMLDivElement>(null)
   const isDark = useThemeStore((s) => s.mode === 'dark')
@@ -107,10 +108,27 @@ export default function PositionDiagram({ pos, currentPrice }: Props) {
     if (cpDates.length) axisEndCandidates.push(cpLastDate)
     const axisEnd = axisEndCandidates.reduce((m, d) => (d.isAfter(m) ? d : m), today)
 
+    // 历史价格路径：起息日 → 今天
+    const historyPoints: [number, number][] = []
+    if (priceHistory && priceHistory.length > 0) {
+      const startTs = start.valueOf()
+      const endTs = today.valueOf()
+      priceHistory
+        .filter((p) => {
+          if (p.price == null) return false
+          const ts = dayjs(p.date)
+          return ts.isValid() && ts.valueOf() >= startTs && ts.valueOf() <= endTs
+        })
+        .sort((a, b) => dayjs(a.date).valueOf() - dayjs(b.date).valueOf())
+        .forEach((p) => {
+          historyPoints.push([dayjs(p.date).valueOf(), p.price])
+        })
+    }
+
     const refPoints = [initialPrice, kiPrice, cpPrice, currentPrice].filter(
       (v): v is number => typeof v === 'number'
     )
-    const allY = [...refPoints, ...koPoints.map((p) => (p.value[1] as number)), ...cpPoints.map((p) => (p.value[1] as number))]
+    const allY = [...refPoints, ...koPoints.map((p) => (p.value[1] as number)), ...cpPoints.map((p) => (p.value[1] as number)), ...historyPoints.map((p) => p[1])]
     const yMinRaw = allY.length ? Math.min(...allY) : 0
     const yMaxRaw = allY.length ? Math.max(...allY) : 1
     // 按数据跨度动态留白，至少各留 2%，避免贴边
@@ -298,6 +316,7 @@ export default function PositionDiagram({ pos, currentPrice }: Props) {
     }
 
     const legendNames: string[] = [...lines.map((l) => l.name)]
+    if (historyPoints.length > 0) legendNames.push('历史价格')
     if (koPoints.length > 0) {
       if (allSameCoupon) legendNames.push('敲出观察')
       else distinctCoupons.forEach((c) => legendNames.push(`票息 ${Number(c).toFixed(2)}%`))
@@ -352,6 +371,25 @@ export default function PositionDiagram({ pos, currentPrice }: Props) {
         guideSeries,
         ...koSeries,
         ...cpSeries,
+        ...(historyPoints.length > 0
+          ? [
+              {
+                name: '历史价格',
+                type: 'line' as const,
+                data: historyPoints,
+                showSymbol: false,
+                smooth: false,
+                lineStyle: { color: '#818cf8', width: 2 },
+                itemStyle: { color: '#818cf8' },
+                tooltip: {
+                  show: true,
+                  formatter: (p: any) =>
+                    `历史价格<br/>${dayjs(p.value[0]).format('YYYY-MM-DD')}<br/>点位 ${Number(p.value[1]).toFixed(2)}`
+                },
+                z: 2
+              }
+            ]
+          : []),
         {
           name: '当前',
           type: 'scatter',
@@ -381,7 +419,7 @@ export default function PositionDiagram({ pos, currentPrice }: Props) {
         }
       ]
     }
-  }, [pos, currentPrice, isDark])
+  }, [pos, currentPrice, isDark, priceHistory])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>

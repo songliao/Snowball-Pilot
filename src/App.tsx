@@ -15,6 +15,7 @@ import AlertSettings from './pages/AlertSettings'
 
 import InstrumentManagement from './pages/InstrumentManagement'
 import EventCalendar from './pages/EventCalendar'
+import ContractCheck from './pages/ContractCheck'
 
 export default function App() {
   const mode = useThemeStore((s) => s.mode)
@@ -248,6 +249,7 @@ export default function App() {
                 <Route path="/positions/:id" element={<PositionDetail />} />
                 <Route path="/positions/analysis" element={<PositionAnalysis />} />
                 <Route path="/instruments" element={<InstrumentManagement />} />
+                <Route path="/contract-check" element={<ContractCheck />} />
                 <Route path="/events" element={<EventCalendar />} />
                 <Route path="/settings/alerts" element={<AlertSettings />} />
               </Routes>

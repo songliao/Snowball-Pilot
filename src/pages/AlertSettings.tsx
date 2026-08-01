@@ -11,8 +11,8 @@ const { Title } = Typography
 
 const STRUCTURE_LABEL: Record<string, string> = { snowball: '雪球', phoenix: '凤凰' }
 const STRUCTURE_COLOR: Record<string, { color: string; bg: string }> = {
-  snowball: { color: '#38bdf8', bg: 'rgba(56,189,248,0.16)' },
-  phoenix: { color: '#f59e0b', bg: 'rgba(245,158,11,0.16)' }
+  snowball: { color: '#7c3aed', bg: 'rgba(176,124,255,0.18)' },
+  phoenix: { color: '#c2410c', bg: 'rgba(255,143,60,0.18)' }
 }
 const TONE_COLOR: Record<string, string> = {
   danger: '#f87171',

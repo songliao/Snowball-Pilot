@@ -283,6 +283,9 @@ export default function PositionDetail() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontSize: 18, fontWeight: 600 }}>{pos.product_name}</span>
             <Tag className={`status-tag status-tag--${pos.status}`}>{statusInfo.label}</Tag>
+            <Tag className={`structure-tag structure-tag--${pos.structure_type || 'snowball'}`}>
+              {pos.structure_type === 'phoenix' ? '凤凰' : '雪球'}
+            </Tag>
             {!!pos.is_ki && pos.status !== 'knocked_in' && (
               <Tag className="status-tag status-tag--knocked_in">
                 敲入于{pos.knock_in_date ? formatDate(pos.knock_in_date) : ''}
@@ -664,7 +667,7 @@ export default function PositionDetail() {
                 <PositionForm readOnly bare />
               </div>
               <div className="flip-back">
-                <PositionDiagram pos={pos} currentPrice={currentPrice} />
+                <PositionDiagram pos={pos} currentPrice={currentPrice} priceHistory={priceSeries} />
               </div>
             </div>
           </div>

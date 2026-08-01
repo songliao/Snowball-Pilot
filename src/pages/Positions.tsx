@@ -275,8 +275,8 @@ export default function Positions() {
   )
 
   return (
-    <div style={{ marginTop: -1 }}>
-      <div className="page-header" style={{ marginBottom: 12 }}>
+    <div>
+      <div className="page-header" style={{ marginBottom: 8 }}>
         <h2 style={{ margin: 0 }}>持仓管理</h2>
       </div>
 

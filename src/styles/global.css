@@ -309,14 +309,14 @@ html, body {
     0 1px 5px rgba(15, 23, 42, 0.1);
 }
 .structure-tag.ant-tag.structure-tag--snowball {
-  background: rgba(59, 130, 246, 0.16);
-  color: #1d4ed8;
-  border-color: rgba(59, 130, 246, 0.32);
+  background: rgba(176, 124, 255, 0.18);
+  color: #7c3aed;
+  border-color: rgba(176, 124, 255, 0.32);
 }
 .structure-tag.ant-tag.structure-tag--phoenix {
-  background: rgba(244, 63, 94, 0.16);
-  color: #be123c;
-  border-color: rgba(244, 63, 94, 0.32);
+  background: rgba(255, 143, 60, 0.18);
+  color: #c2410c;
+  border-color: rgba(255, 143, 60, 0.32);
 }
 [data-theme='dark'] .structure-tag.ant-tag {
   border-color: rgba(255, 255, 255, 0.18);
@@ -325,14 +325,14 @@ html, body {
     0 1px 6px rgba(0, 0, 0, 0.35);
 }
 [data-theme='dark'] .structure-tag.ant-tag.structure-tag--snowball {
-  background: rgba(96, 165, 250, 0.18);
-  color: #93c5fd;
-  border-color: rgba(96, 165, 250, 0.4);
+  background: rgba(176, 124, 255, 0.22);
+  color: #c4b5fd;
+  border-color: rgba(176, 124, 255, 0.45);
 }
 [data-theme='dark'] .structure-tag.ant-tag.structure-tag--phoenix {
-  background: rgba(251, 113, 133, 0.18);
-  color: #fda4af;
-  border-color: rgba(251, 113, 133, 0.4);
+  background: rgba(255, 143, 60, 0.22);
+  color: #fdba74;
+  border-color: rgba(255, 143, 60, 0.45);
 }
 
 /* ===== 状态标签（存续中 / 已敲入 / 已敲出 / 已到期）：磨砂玻璃质感 ===== */

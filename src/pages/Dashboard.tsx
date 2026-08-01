@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo, type CSSProperties } from 'react'
 import dayjs from 'dayjs'
-import { Card, Row, Col, Button, Popover, Switch, Segmented } from 'antd'
+import { Card, Row, Col, Button, Popover, Switch, Segmented, Tag } from 'antd'
 import {
   DollarOutlined,
   SafetyCertificateOutlined,
@@ -33,10 +33,6 @@ interface IndexQuoteData {
 }
 
 const STRUCTURE_LABEL: Record<string, string> = { snowball: '雪球', phoenix: '凤凰' }
-const STRUCTURE_COLOR: Record<string, { color: string; bg: string }> = {
-  snowball: { color: '#38bdf8', bg: 'rgba(56,189,248,0.16)' },
-  phoenix: { color: '#f59e0b', bg: 'rgba(245,158,11,0.16)' }
-}
 const ALERT_TONE: Record<string, CSSProperties> = {
   danger: { color: 'var(--mc-danger, #f87171)', background: 'rgba(248,113,113,0.14)' },
   warn: { color: '#f59e0b', background: 'rgba(245,158,11,0.14)' },
@@ -309,10 +305,10 @@ export default function Dashboard() {
   return (
     <div>
       {/* 页面标题（保持卡片原位，仅升级为页面标题，不改变卡片位置） */}
-      <div className="page-header" style={{ marginBottom: 12 }}>
+      <div className="page-header" style={{ marginBottom: 8 }}>
         <h2 style={{ margin: 0 }}>投资总览</h2>
       </div>
-      <Row gutter={[12, 12]} style={{ marginTop: -4, marginBottom: 20 }} align="stretch">
+      <Row gutter={[12, 12]} style={{ marginBottom: 20 }} align="stretch">
         <Col span={6}>
           <Card className="stat-card glass-card" variant="borderless" style={{ height: '100%' }}>
             <div className="stat-card-inner">
@@ -535,7 +531,6 @@ export default function Dashboard() {
                 style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: ri === 0 ? 0 : 12, alignItems: 'flex-start' }}
               >
                 {row.map((a) => {
-                  const sc = STRUCTURE_COLOR[a.structureType] || STRUCTURE_COLOR.snowball
                   return (
                     <div key={a.id} style={{ flex: '0 0 calc((100% - 24px) / 3)', minWidth: 0, display: 'flex' }}>
                   <Card
@@ -557,12 +552,9 @@ export default function Dashboard() {
                       >
                         {a.title}
                       </span>
-                      <span
-                        className="struct-tag"
-                        style={{ color: sc.color, background: sc.bg, flexShrink: 0 }}
-                      >
+                      <Tag className={`structure-tag structure-tag--${a.structureType || 'snowball'}`} style={{ flexShrink: 0 }}>
                         {STRUCTURE_LABEL[a.structureType] || a.structureType}
-                      </span>
+                      </Tag>
                     </div>
                     <div style={{ fontSize: 12, opacity: 0.55, marginTop: 4 }}>
                       {a.code} · 现价 {a.cur.toFixed(2)}
