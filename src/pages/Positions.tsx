@@ -75,11 +75,27 @@ export default function Positions() {
     return { date: dates[idx], barrierPrice }
   }
 
+  // 敲出距离 = 1 - 敲出障碍价格 / 现价
+  function getKoDistance(p: PositionData): number | null {
+    const { barrierPrice } = getNextKo(p)
+    const price = latestPrices[p.underlying_code]
+    if (barrierPrice == null || price == null || price === 0) return null
+    return 1 - barrierPrice / price
+  }
+
+  // 派息距离 = 1 - 派息障碍价格 / 现价（仅凤凰使用）
+  function getCouponDistance(p: PositionData): number | null {
+    const { barrierPrice } = getNextCoupon(p)
+    const price = latestPrices[p.underlying_code]
+    if (barrierPrice == null || price == null || price === 0) return null
+    return 1 - barrierPrice / price
+  }
+
   const buildColumns = (isPhoenix: boolean): TableProps<PositionData>['columns'] => {
     // 百分比列宽：随页面宽度等比伸缩，各列相对均衡
     const W = isPhoenix
-      ? { contract: '7%', date: '7.5%', underlying: '9.5%', price: '9%', couponDate: '10%', couponBarrier: '9%', koDate: '10%', koBarrier: '9%', notional: '9%', margin: '8%', status: '7%' }
-      : { contract: '8%', date: '9%', underlying: '11%', price: '10%', koDate: '12%', koBarrier: '10%', notional: '13%', margin: '10%', status: '9%' }
+      ? { contract: '12%', date: '7%', underlying: '9%', price: '9%', couponDate: '9%', couponBarrier: '8.5%', koDate: '9%', koBarrier: '8.5%', notional: '9%', margin: '7.5%', status: '7%' }
+      : { contract: '13%', date: '8.5%', underlying: '10.5%', price: '9.5%', koDate: '10.5%', koBarrier: '9%', notional: '12.5%', margin: '9.5%', status: '8.5%' }
     const cols: TableProps<PositionData>['columns'] = [
       {
         title: '合约编号',
@@ -133,16 +149,17 @@ export default function Positions() {
         }
       },
       {
-        title: '敲出障碍',
+        title: '敲出距离',
         key: 'next_ko_barrier',
         width: W.koBarrier,
-        ellipsis: true,
         align: 'right',
-        sorter: (a, b) =>
-          (getNextKo(a).barrierPrice ?? -Infinity) - (getNextKo(b).barrierPrice ?? -Infinity),
+        onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
+        sorter: (a, b) => (getKoDistance(a) ?? -Infinity) - (getKoDistance(b) ?? -Infinity),
         render: (_, r) => {
-          const { barrierPrice } = getNextKo(r)
-          return barrierPrice != null ? barrierPrice.toFixed(2) : '—'
+          const d = getKoDistance(r)
+          if (d == null) return '—'
+          const color = d > 0 ? '#52c41a' : d < 0 ? '#ff4d4f' : undefined
+          return <span style={{ color }}>{formatPercent(d)}</span>
         }
       },
       {
@@ -239,15 +256,17 @@ export default function Positions() {
         }
       })
       cols.splice(insertAt + 1, 0, {
-        title: '派息障碍',
+        title: '派息距离',
         key: 'next_coupon_barrier',
         width: W.couponBarrier,
         align: 'right',
-        sorter: (a, b) =>
-          (getNextCoupon(a).barrierPrice ?? -Infinity) - (getNextCoupon(b).barrierPrice ?? -Infinity),
+        onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
+        sorter: (a, b) => (getCouponDistance(a) ?? -Infinity) - (getCouponDistance(b) ?? -Infinity),
         render: (_, r: PositionData) => {
-          const { barrierPrice } = getNextCoupon(r)
-          return barrierPrice != null ? barrierPrice.toFixed(2) : '—'
+          const d = getCouponDistance(r)
+          if (d == null) return '—'
+          const color = d > 0 ? '#52c41a' : d < 0 ? '#ff4d4f' : undefined
+          return <span style={{ color }}>{formatPercent(d)}</span>
         }
       })
     }

@@ -121,11 +121,29 @@ export default function Dashboard() {
     setQuoteLoading(true)
     try {
       const results: Record<string, IndexQuoteData> = {}
+      const today = new Date().toISOString().split('T')[0]
       for (const code of watchCodes) {
         const data = await window.api.market.fetchIndexQuote(code)
-        if (data) results[code] = data
+        if (!data) continue
+        results[code] = data
+        // 自动保存到本地，使实时行情在页面重开后仍保留（与 fetchRemotePrice 同源逻辑）
+        window.api.prices
+          .upsert({
+            underlying_code: code,
+            price: data.price,
+            date: today,
+            source: 'auto',
+            open: data.open,
+            high: data.high,
+            low: data.low,
+            volume: data.volume
+          })
+          .catch(() => {
+            /* 落库失败不影响卡片展示 */
+          })
       }
-      setQuotes(results)
+      // 合并而非整体替换：个别标的实时接口偶发失败时，已展示的卡片不被清空
+      setQuotes((prev) => ({ ...prev, ...results }))
     } finally {
       setQuoteLoading(false)
     }
