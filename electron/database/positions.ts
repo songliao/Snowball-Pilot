@@ -99,7 +99,8 @@ export function registerPositionHandlers(): void {
 
   ipcMain.handle('positions:delete', (_event, id: number, structureType: string) => {
     const table = tableForType(structureType)
-    execute('DELETE FROM events WHERE position_id = ?', [id])
+    const eventType = structureType === 'phoenix' ? 'phoenix' : 'snowball'
+    execute('DELETE FROM events WHERE position_id = ? AND structure_type = ?', [id, eventType])
     execute(`DELETE FROM ${table} WHERE id = ?`, [id])
     return true
   })
