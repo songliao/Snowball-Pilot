@@ -29,6 +29,31 @@ export default function Positions() {
   const navigate = useNavigate()
   const [deletingId, setDeletingId] = useState<number | null>(null)
 
+  // 排序状态持久化：用户调整排序后，下次进入仍保持
+  const [sortField, setSortField] = useState<string | undefined>(() => {
+    return localStorage.getItem('positions_sort_field') || undefined
+  })
+  const [sortOrder, setSortOrder] = useState<'ascend' | 'descend' | undefined>(() => {
+    const v = localStorage.getItem('positions_sort_order')
+    return v === 'ascend' || v === 'descend' ? v : undefined
+  })
+  const handleTableChange: TableProps<PositionData>['onChange'] = (_pagination, _filters, sorter) => {
+    // 仅处理单列排序（当前未启用多列排序）
+    const s = Array.isArray(sorter) ? sorter[0] : sorter
+    const field = (s?.field ?? s?.columnKey ?? s?.key) as string | undefined
+    const order = (s?.order ?? undefined) as 'ascend' | 'descend' | undefined
+    setSortField(field)
+    setSortOrder(order)
+    if (field && order) {
+      localStorage.setItem('positions_sort_field', field)
+      localStorage.setItem('positions_sort_order', order)
+    } else {
+      // 取消排序时清除持久化
+      localStorage.removeItem('positions_sort_field')
+      localStorage.removeItem('positions_sort_order')
+    }
+  }
+
   useEffect(() => {
     fetchAll()
   }, [fetchAll])
@@ -94,8 +119,8 @@ export default function Positions() {
   const buildColumns = (isPhoenix: boolean): TableProps<PositionData>['columns'] => {
     // 百分比列宽：随页面宽度等比伸缩，各列相对均衡
     const W = isPhoenix
-      ? { contract: '12%', date: '7%', underlying: '9%', price: '9%', couponDate: '9%', couponBarrier: '8.5%', koDate: '9%', koBarrier: '8.5%', notional: '9%', margin: '7.5%', status: '7%' }
-      : { contract: '13%', date: '8.5%', underlying: '10.5%', price: '9.5%', koDate: '10.5%', koBarrier: '9%', notional: '12.5%', margin: '9.5%', status: '8.5%' }
+      ? { contract: '12%', date: '7%', underlying: '9%', price: '9%', couponDate: '9%', couponBarrier: '8.5%', koDate: '9%', koBarrier: '11%', notional: '9%', margin: '7.5%', status: '7%' }
+      : { contract: '13%', date: '8.5%', underlying: '10.5%', price: '9.5%', koDate: '10.5%', koBarrier: '11.5%', notional: '10%', margin: '9.5%', status: '8.5%' }
     const cols: TableProps<PositionData>['columns'] = [
       {
         title: '合约编号',
@@ -270,7 +295,11 @@ export default function Positions() {
         }
       })
     }
-    return cols
+    return cols.map((c) =>
+      'sorter' in c && c.sorter
+        ? { ...c, sortOrder: c.key === sortField ? (sortOrder ?? null) : null }
+        : c
+    )
   }
   const snowballColumns = buildColumns(false)
   const phoenixColumns = buildColumns(true)
@@ -286,6 +315,7 @@ export default function Positions() {
       dataSource={data}
       pagination={{ pageSize: 12, hideOnSinglePage: true }}
       locale={{ emptyText: '暂无持仓' }}
+      onChange={handleTableChange}
       onRow={(record) => ({
         style: { cursor: 'pointer' },
         onClick: () => navigate(`/positions/${record.structure_type}/${record.id}`, { state: { from: '/positions' } })

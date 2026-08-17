@@ -14,10 +14,12 @@ import {
   GiftOutlined,
   EditOutlined,
   CheckOutlined,
-  RollbackOutlined
+  RollbackOutlined,
+  FileTextOutlined
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { usePositionStore } from '../stores/positionStore'
+import { parseContractText, type ParsedContract } from '../utils/contractParser'
 
 const { Title } = Typography
 
@@ -89,6 +91,26 @@ export default function PositionForm({ readOnly = false, bare = false }: { readO
   const { token } = theme.useToken()
   const { create, update, current } = usePositionStore()
   const [underlyingOptions, setUnderlyingOptions] = useState<{ label: string; value: string }[]>([])
+
+  // 导入交易：在新增（非编辑）页面内通过「导入交易」按钮展开，粘贴合约文本自动填充
+  const isImportMode = new URLSearchParams(location.search).get('import') === '1'
+  const [importOpen, setImportOpen] = useState(isImportMode)
+  const [contractText, setContractText] = useState('')
+  const [importWarnings, setImportWarnings] = useState<string[]>([])
+
+  const handleParseContract = () => {
+    const parsed = parseContractText(contractText)
+    const values: Record<string, unknown> = { ...parsed }
+    delete (values as { warnings?: string[] }).warnings
+    // 日期字段需转换为 Dayjs 以适配 DatePicker
+    if (parsed.trade_start_date) {
+      values.trade_start_date = dayjs(parsed.trade_start_date)
+    }
+    setIsPhoenix(parsed.structureType === 'phoenix')
+    form.setFieldsValue(values)
+    setImportWarnings(parsed.warnings ?? [])
+    message.success('已解析并填充字段，请核对后保存')
+  }
 
   useEffect(() => {
     window.api.prices
@@ -688,6 +710,15 @@ export default function PositionForm({ readOnly = false, bare = false }: { readO
             </Button>
           ) : (
             <>
+              {!id && (
+                <Button
+                  className="toolbar-btn"
+                  icon={<span className="nav-icon-circle nav-icon-circle--import"><FileTextOutlined /></span>}
+                  onClick={() => setImportOpen((v) => !v)}
+                >
+                  {importOpen ? '收起导入' : '导入交易'}
+                </Button>
+              )}
               <Button className="toolbar-btn" icon={<span className="nav-icon-circle"><RollbackOutlined /></span>} onClick={() => navigate(-1)}>取消</Button>
               <Button className="toolbar-btn" icon={<span className="nav-icon-circle nav-icon-circle--refresh"><CheckOutlined /></span>} loading={saving} onClick={() => form.submit()}>
                 保存
@@ -696,6 +727,32 @@ export default function PositionForm({ readOnly = false, bare = false }: { readO
           )}
         </Space>
       </div>
+      {(isImportMode || importOpen) && !readOnly && (
+        <div style={{ marginBottom: 16 }}>
+          <Input.TextArea
+            rows={6}
+            placeholder={'粘贴券商导出的合约文本，例如：\n交易编号: GTZQ-GYZQ-OPT-20260813-01\n结构类型: 早利雪球\n...'}
+            value={contractText}
+            onChange={(e) => setContractText(e.target.value)}
+          />
+          <Space style={{ marginTop: 12 }}>
+            <Button
+              type="primary"
+              icon={<span className="nav-icon-circle nav-icon-circle--refresh"><RedoOutlined /></span>}
+              disabled={!contractText.trim()}
+              onClick={handleParseContract}
+            >
+              解析并填充
+            </Button>
+            <Button onClick={() => { setContractText(''); setImportWarnings([]) }}>清空</Button>
+          </Space>
+          {importWarnings.length > 0 && (
+            <div style={{ marginTop: 12, color: token.colorWarning, fontSize: 12 }}>
+              以下字段未映射（表单无对应控件，已忽略）：{importWarnings.join('、')}
+            </div>
+          )}
+        </div>
+      )}
       {formBody}
     </div>
   )
