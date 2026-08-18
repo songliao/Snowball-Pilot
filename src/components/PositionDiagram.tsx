@@ -30,7 +30,10 @@ interface Props {
 }
 
 /**
- * 合约实时点位图示：横轴为起息日 → 最后一个敲出观察日（含当前日期），
+ * 合约实时点位图示：横轴覆盖全部结构观察日（起息日 → 最后一个敲出/派息观察日，含当前日期），
+ * 结构示意图（敲出/派息观察点、参考线、日期辅助线）始终完整展示。
+ * 已敲出/到期了结的合约，仅「行情历史曲线」绘制到「了结日」为止（不再延伸到当前、不标注当前点位），
+ * 其余结构示意图不受影响。
  * 纵轴为价格点位，标注期初价、敲入/敲出/派息障碍价，并用一个点表示当前日期与现价。
  */
 export default function PositionDiagram({ pos, currentPrice, priceHistory }: Props) {
@@ -102,17 +105,25 @@ export default function PositionDiagram({ pos, currentPrice, priceHistory }: Pro
     const koLastDate = koDates.length ? koDates[koDates.length - 1] : dayjs()
     const cpLastDate = cpDates.length ? cpDates[cpDates.length - 1] : dayjs()
     const today = dayjs()
-    // 横轴覆盖到「最后一个敲出/派息观察日」与「今天」中更晚者，确保当前点与各观察点可见
-    const axisEndCandidates = [today]
+    // 已敲出/到期了结的合约：行情历史曲线仅绘制到「敲出/了结日」为止；
+    // 但结构示意图（观察点/参考线）仍完整展示，故横轴不截断
+    const settled = pos.status === 'knocked_out' || pos.status === 'matured'
+    const terminationDate = pos.termination_date ? dayjs(pos.termination_date) : null
+    const settledEnd = settled && terminationDate && terminationDate.isValid() ? terminationDate : null
+    // 横轴严格覆盖合约全周期：期初（起息日）→ 期末（最后一个敲出/派息观察日）；
+    // 不延伸到「今天」之后，确保结构示意图从期初到期末完整展示
+    const axisEndCandidates: dayjs.Dayjs[] = []
     if (koDates.length) axisEndCandidates.push(koLastDate)
     if (cpDates.length) axisEndCandidates.push(cpLastDate)
-    const axisEnd = axisEndCandidates.reduce((m, d) => (d.isAfter(m) ? d : m), today)
+    const axisEnd = axisEndCandidates.length
+      ? axisEndCandidates.reduce((m, d) => (d.isAfter(m) ? d : m), axisEndCandidates[0])
+      : today
 
-    // 历史价格路径：起息日 → 今天
+    // 历史价格路径：起息日 → 今天（已了结则终止于了结日）
     const historyPoints: [number, number][] = []
     if (priceHistory && priceHistory.length > 0) {
       const startTs = start.valueOf()
-      const endTs = today.valueOf()
+      const endTs = (settledEnd ?? today).valueOf()
       priceHistory
         .filter((p) => {
           if (p.price == null) return false
@@ -157,7 +168,13 @@ export default function PositionDiagram({ pos, currentPrice, priceHistory }: Pro
     const splitColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'
     const textColor = isDark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.55)'
 
-    const currentPoint = currentPrice != null ? [{ value: [today.valueOf(), currentPrice] }] : []
+    // 已了结合约不再标注「当前」点位（图已终止于了结日）
+    const currentPoint = !settledEnd && currentPrice != null ? [{ value: [today.valueOf(), currentPrice] }] : []
+    // 已了结合约：在行情曲线终点（了结日）放置一个带图例的标记点
+    const settledEndPoint =
+      settledEnd && historyPoints.length > 0
+        ? [{ value: [settledEnd.valueOf(), historyPoints[historyPoints.length - 1][1]] }]
+        : []
 
     // 各参考线改为独立 series：图上不显示文字，统一由 legend 标识
     const refSeries = lines.map((l) => ({
@@ -323,6 +340,7 @@ export default function PositionDiagram({ pos, currentPrice, priceHistory }: Pro
     }
     if (cpPoints.length > 0) legendNames.push('派息观察')
     if (currentPoint.length > 0) legendNames.push('当前')
+    if (settledEndPoint.length > 0) legendNames.push('了结日')
 
     return {
       backgroundColor: 'transparent',
@@ -390,6 +408,37 @@ export default function PositionDiagram({ pos, currentPrice, priceHistory }: Pro
               }
             ]
           : []),
+        {
+          name: '了结日',
+          type: 'scatter',
+          data: settledEndPoint,
+          symbol: 'circle',
+          symbolSize: 13,
+          itemStyle: {
+            color: '#f97316',
+            borderColor: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.25)',
+            borderWidth: 1
+          },
+          markLine: settledEndPoint.length
+            ? {
+                silent: true,
+                symbol: 'none',
+                lineStyle: { color: '#f97316', type: 'dashed', width: 1, opacity: 0.85 },
+                label: { show: false },
+                data: [
+                  { xAxis: settledEnd!.valueOf() },
+                  { yAxis: (settledEndPoint[0].value as number[])[1] }
+                ]
+              }
+            : undefined,
+          tooltip: {
+            show: true,
+            formatter: () =>
+              `了结日<br/>${settledEnd!.format('YYYY-MM-DD')}<br/>点位 ${Number(settledEndPoint[0].value[1]).toFixed(2)}`
+          },
+          label: { show: false },
+          z: 8
+        },
         {
           name: '当前',
           type: 'scatter',

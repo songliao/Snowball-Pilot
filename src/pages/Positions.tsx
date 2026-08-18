@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Card, Table, Button, Popconfirm, Space, Tag, message } from 'antd'
+import { Card, Table, Button, Popconfirm, Space, Tag, message, Segmented } from 'antd'
 import type { TableProps } from 'antd'
 import { EyeOutlined, DeleteOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
@@ -28,6 +28,9 @@ export default function Positions() {
   const { latestPrices, fetchLatestPrice } = useMarketStore()
   const navigate = useNavigate()
   const [deletingId, setDeletingId] = useState<number | null>(null)
+  // 持仓列表默认仅展示存续合约；可切换为全部（含已了结）
+  const [showAll, setShowAll] = useState(false)
+  const isSettled = (p: PositionData) => p.status === 'knocked_out' || p.status === 'matured'
 
   // 排序状态持久化：用户调整排序后，下次进入仍保持
   const [sortField, setSortField] = useState<string | undefined>(() => {
@@ -304,8 +307,9 @@ export default function Positions() {
   const snowballColumns = buildColumns(false)
   const phoenixColumns = buildColumns(true)
 
-  const snowballList = positions.filter((p) => p.structure_type === 'snowball')
-  const phoenixList = positions.filter((p) => p.structure_type === 'phoenix')
+  const visiblePositions = showAll ? positions : positions.filter((p) => !isSettled(p))
+  const snowballList = visiblePositions.filter((p) => p.structure_type === 'snowball')
+  const phoenixList = visiblePositions.filter((p) => p.structure_type === 'phoenix')
 
   const renderTable = (data: PositionData[], cols: TableProps<PositionData>['columns']) => (
     <Table<PositionData>
@@ -325,8 +329,16 @@ export default function Positions() {
 
   return (
     <div>
-      <div className="page-header" style={{ marginBottom: 8 }}>
+      <div className="page-header" style={{ marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <h2 style={{ margin: 0 }}>持仓管理</h2>
+        <Segmented
+          value={showAll ? 'all' : 'active'}
+          onChange={(v) => setShowAll(v === 'all')}
+          options={[
+            { label: '存续合约', value: 'active' },
+            { label: '全部合约', value: 'all' }
+          ]}
+        />
       </div>
 
       <Card
