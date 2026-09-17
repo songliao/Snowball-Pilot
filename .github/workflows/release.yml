@@ -55,10 +55,11 @@ jobs:
         run: |
           # 手动触发时标签可能尚未推送，这里补建后 --verify-tag 才能通过
           git tag "$TAG" 2>/dev/null && git push origin "$TAG" || true
+          # 重跑同一个 tag 时 release 已存在，改为更新已有 release，保证幂等
           gh release create "$TAG" \
             --title "$TAG" \
             --generate-notes \
-            --verify-tag
+            --verify-tag || gh release edit "$TAG" --title "$TAG"
 
   build-macos:
     needs: create-release
@@ -99,12 +100,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # 只构建 dmg / zip。macOS 自动更新依赖 zip 产物（Squirrel.Mac），
-      # 若同时产出 AppImage 之类无关目标会拖慢构建。
+      # 只构建 dmg / zip。macOS 自动更新依赖 zip 产物（Squirrel.Mac）。
+      # 显式指定双架构：macos-latest 现在是 Apple Silicon 机器，默认只出 arm64，
+      # 若不写 --x64，Intel Mac 在 latest-mac.yml 里找不到匹配架构，收不到更新。
       - name: 构建并发布
         run: |
           npm run build
-          npx electron-builder --mac --publish always
+          npx electron-builder --mac --x64 --arm64 --publish always
 
       - name: 清理钥匙串
         if: always() && env.APPLE_CERT_BASE64 != ''
