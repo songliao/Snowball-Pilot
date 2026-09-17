@@ -5,6 +5,7 @@ import zhCN from 'antd/locale/zh_CN'
 import { useThemeStore } from './stores/themeStore'
 import { useAuthStore, SESSION_TTL } from './stores/authStore'
 import AppLayout from './components/Layout'
+import UpdateNotifier from './components/UpdateNotifier'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Positions from './pages/Positions'
@@ -205,6 +206,8 @@ export default function App() {
       }}
     >
       <div data-theme={mode} style={{ minHeight: '100vh', background: isDark ? '#09090b' : '#f5f5f4' }}>
+        {/* 全局更新提示：登录页与主界面均可见 */}
+        <UpdateNotifier />
         {initializing ? (
           // 启动时正在从 OS 加密存储恢复凭据，短暂占位
           <div

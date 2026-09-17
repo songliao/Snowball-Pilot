@@ -1,6 +1,8 @@
 node_modules/
 out/
 dist/
+# WorkBuddy 本地项目数据（记忆日志、打包调试日志），不进版本库
+.workbuddy/
 *.log
 *.err
 build.log

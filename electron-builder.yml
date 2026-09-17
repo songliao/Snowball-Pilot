@@ -26,6 +26,22 @@ files:
   # 因此必须把它的源码保留进 asar 的 node_modules，否则打包后找不到模块
   - "node_modules/sql.js/**/*"
 asar: true
+# ——— 自动更新发布源 ———
+# provider: github 表示发布到 GitHub Releases。仓库已公开，客户端无需 token 即可
+# 拉取 latest.yml 与安装包。CI 里注入 GH_TOKEN 后 electron-builder 会自动创建
+# release 并上传产物（见 .github/workflows/release.yml）。
+publish:
+  provider: github
+  owner: songliao
+  repo: Snowball-Pilot
+  releaseType: release
+# 备选方案（自有静态服务器）：把上面 4 行替换为
+#   publish:
+#     provider: generic
+#     url: http://8.159.158.153:6001/releases
+#     channel: latest
+# 并把构建环境的 UPDATER_PROVIDER 设为 generic。
+# 注意：generic 不会自动上传，需要自己把 dist 产物同步到服务器。
 # 签名前清除应用包内的扩展属性杂质（见 build/afterPack.js），
 # 否则 codesign 在开启 hardened runtime 时会报
 # "resource fork, Finder information, or similar detritus not allowed"。

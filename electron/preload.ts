@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { KLinePoint } from './services/market-data'
+import type { UpdaterEvent } from './services/updater-types'
 
 export interface PositionData {
   id?: number
@@ -209,6 +210,28 @@ const api = {
     /** 解密 base64 密文返回明文；解密失败返回 null */
     decrypt: (b64: string): Promise<string | null> =>
       ipcRenderer.invoke('secure-store:get', '', b64)
+  },
+
+  // 自动更新（开发模式下主进程返回 disabled，不会产生副作用）
+  updater: {
+    /** 主动检查更新；ok=false 时 reason 为失败原因（含 dev-mode） */
+    check: (): Promise<{ ok: boolean; reason?: string; updateAvailable: boolean; version: string }> =>
+      ipcRenderer.invoke('updater:check'),
+    /** 下载新版本（需先 check 确认有新版本） */
+    download: (): Promise<{ ok: boolean; reason?: string; alreadyReady?: boolean }> =>
+      ipcRenderer.invoke('updater:download'),
+    /** 取消下载 */
+    cancel: (): Promise<boolean> => ipcRenderer.invoke('updater:cancel'),
+    /** 退出并安装已下载的新版本 */
+    install: (): Promise<boolean> => ipcRenderer.invoke('updater:install'),
+    /** 订阅更新状态推送，返回取消订阅函数 */
+    onEvent: (cb: (event: UpdaterEvent) => void): (() => void) => {
+      const listener = (_e: Electron.IpcRendererEvent, event: UpdaterEvent): void => cb(event)
+      ipcRenderer.on('updater:event', listener)
+      return () => {
+        ipcRenderer.removeListener('updater:event', listener)
+      }
+    }
   }
 }
 

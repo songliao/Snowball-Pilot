@@ -11,6 +11,10 @@
 const { execSync } = require('child_process')
 
 exports.default = async ({ appOutDir, packager }) => {
+  // 该钩子只解决 macOS codesign 的扩展属性问题，Windows/Linux 上无意义，
+  // 且 `cp -R -X`（BSD 选项）在 Windows 会直接报错刷屏，故直接跳过。
+  if (process.platform !== 'darwin') return
+
   const appName = packager.appInfo.productFilename // 例如 "Snowball Pilot"
   const appPath = `${appOutDir}/${appName}.app`
   const tmpPath = `${appOutDir}/.__clean_${appName}.app`

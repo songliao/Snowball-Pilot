@@ -1,6 +1,6 @@
 import { ReactNode, useState, useRef, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Layout, Menu, Popover, Segmented, Divider, Button } from 'antd'
+import { Layout, Menu, Popover, Segmented, Divider, Button, Progress } from 'antd'
 import {
   CompassOutlined,
   WalletOutlined,
@@ -14,11 +14,13 @@ import {
   PieChartOutlined,
   UserOutlined,
   SafetyCertificateOutlined,
+  CloudDownloadOutlined,
 } from '@ant-design/icons'
 import snowPng from '../assets/snow.png'
 import { useThemeStore } from '../stores/themeStore'
 import { useAuthStore } from '../stores/authStore'
 import { usePositionStore } from '../stores/positionStore'
+import { useUpdaterStore } from '../stores/updaterStore'
 import logo from '../assets/logo.png'
 import phoenixPng from '../assets/money-saving.png'
 
@@ -93,6 +95,20 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const [addOpen, setAddOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const settingsWrapRef = useRef<HTMLDivElement>(null)
+
+  // ——— 自动更新 ———
+  // 状态统一放在 updaterStore（全局 UpdateNotifier 也读它），此处只做入口与状态展示
+  const updaterPhase = useUpdaterStore((s) => s.phase)
+  const updaterVersion = useUpdaterStore((s) => s.version)
+  const updaterPercent = useUpdaterStore((s) => s.percent)
+  const updaterMessage = useUpdaterStore((s) => s.message)
+  const checkUpdate = useUpdaterStore((s) => s.check)
+  const installUpdate = useUpdaterStore((s) => s.install)
+
+  const handleCheckUpdate = (): void => {
+    setSettingsOpen(false)
+    checkUpdate()
+  }
   // 持仓管理为带子菜单的父项，进入任一持仓相关路由时保持展开
   const [openKeys, setOpenKeys] = useState<string[]>(
     location.pathname.startsWith('/positions') ? ['/positions'] : []
@@ -339,6 +355,58 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                 <InfoCircleOutlined />
                 <span>关于</span>
               </div>
+
+              <div
+                onClick={handleCheckUpdate}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '8px 4px',
+                  cursor: 'pointer',
+                  borderRadius: 6,
+                  fontSize: 13,
+                  color: isDark ? 'rgba(244,244,245,0.82)' : 'rgba(30,30,34,0.78)',
+                  transition: 'background 0.2s'
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+              >
+                <CloudDownloadOutlined />
+                <span style={{ flex: 1 }}>检查更新</span>
+                {updaterPhase === 'downloaded' && (
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e' }} />
+                )}
+              </div>
+
+              {/* 更新状态条：仅在非 idle 时显示，避免常态占位 */}
+              {updaterPhase !== 'idle' && (
+                <div style={{ padding: '8px 4px 4px', fontSize: 12, color: isDark ? 'rgba(244,244,245,0.72)' : 'rgba(30,30,34,0.5)' }}>
+                  {updaterPhase === 'checking' && <span>正在检查更新…</span>}
+
+                  {updaterPhase === 'available' && <span>发现新版本 {updaterVersion}，正在后台下载…</span>}
+
+                  {updaterPhase === 'downloading' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <span>下载中 {updaterPercent}%</span>
+                      <Progress percent={updaterPercent} size="small" showInfo={false} />
+                    </div>
+                  )}
+
+                  {updaterPhase === 'downloaded' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <span>更新已就绪{updaterVersion ? `（${updaterVersion}）` : ''}</span>
+                      <Button size="small" type="primary" onClick={installUpdate}>
+                        重启并安装
+                      </Button>
+                    </div>
+                  )}
+
+                  {updaterPhase === 'error' && (
+                    <span style={{ color: '#ef4444' }}>更新失败：{updaterMessage}</span>
+                  )}
+                </div>
+              )}
 
               <div
                 onClick={() => { setSettingsOpen(false); useAuthStore.getState().logout() }}
