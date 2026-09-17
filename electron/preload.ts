@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { KLinePoint } from './services/market-data'
-import type { UpdaterEvent } from './services/updater-types'
+import type { UpdaterEvent, UpdaterErrorCode } from './services/updater-types'
 
 export interface PositionData {
   id?: number
@@ -214,12 +214,26 @@ const api = {
 
   // 自动更新（开发模式下主进程返回 disabled，不会产生副作用）
   updater: {
-    /** 主动检查更新；ok=false 时 reason 为失败原因（含 dev-mode） */
-    check: (): Promise<{ ok: boolean; reason?: string; updateAvailable: boolean; version: string }> =>
-      ipcRenderer.invoke('updater:check'),
+    /**
+     * 主动检查更新。
+     * ok=false 时：reason 是可直接展示的简短中文，detail 是原始错误（仅用于查看详情）
+     */
+    check: (): Promise<{
+      ok: boolean
+      reason?: string
+      code?: UpdaterErrorCode
+      detail?: string
+      updateAvailable: boolean
+      version: string
+    }> => ipcRenderer.invoke('updater:check'),
     /** 下载新版本（需先 check 确认有新版本） */
-    download: (): Promise<{ ok: boolean; reason?: string; alreadyReady?: boolean }> =>
-      ipcRenderer.invoke('updater:download'),
+    download: (): Promise<{
+      ok: boolean
+      reason?: string
+      code?: UpdaterErrorCode
+      detail?: string
+      alreadyReady?: boolean
+    }> => ipcRenderer.invoke('updater:download'),
     /** 取消下载 */
     cancel: (): Promise<boolean> => ipcRenderer.invoke('updater:cancel'),
     /** 退出并安装已下载的新版本 */

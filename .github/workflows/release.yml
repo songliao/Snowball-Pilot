@@ -100,13 +100,32 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: 解析标签
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then TAG="${{ inputs.tag }}"; else TAG="${{ github.ref_name }}"; fi
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+
       # 只构建 dmg / zip。macOS 自动更新依赖 zip 产物（Squirrel.Mac）。
       # 显式指定双架构：macos-latest 现在是 Apple Silicon 机器，默认只出 arm64，
       # 若不写 --x64，Intel Mac 在 latest-mac.yml 里找不到匹配架构，收不到更新。
-      - name: 构建并发布
+      # 这里刻意 --publish never：electron-builder 一次性上传 4 个 ~180MB 的文件
+      # 很容易中途断开（表现为 blockmap 传上去了、dmg/zip 本体没有），
+      # 改为本地构建 + 下面分批上传，失败后直接重跑本 job 即可，不会重复建 release。
+      - name: 构建
         run: |
           npm run build
-          npx electron-builder --mac --x64 --arm64 --publish always
+          npx electron-builder --mac --x64 --arm64 --publish never
+
+      - name: 上传 macOS 产物
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd dist
+          # --clobber：同名资产直接覆盖，保证重跑幂等
+          gh release upload "$TAG" latest-mac.yml --clobber
+          gh release upload "$TAG" *.blockmap --clobber
+          gh release upload "$TAG" *.dmg --clobber
+          gh release upload "$TAG" *.zip --clobber
 
       - name: 清理钥匙串
         if: always() && env.APPLE_CERT_BASE64 != ''

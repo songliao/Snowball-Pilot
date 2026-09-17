@@ -1,6 +1,6 @@
 import { ReactNode, useState, useRef, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Layout, Menu, Popover, Segmented, Divider, Button, Progress } from 'antd'
+import { Layout, Menu, Popover, Segmented, Divider, Button, Progress, Modal } from 'antd'
 import {
   CompassOutlined,
   WalletOutlined,
@@ -102,12 +102,19 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const updaterVersion = useUpdaterStore((s) => s.version)
   const updaterPercent = useUpdaterStore((s) => s.percent)
   const updaterMessage = useUpdaterStore((s) => s.message)
+  const updaterDetail = useUpdaterStore((s) => s.detail)
+  const updaterNotice = useUpdaterStore((s) => s.notice)
   const checkUpdate = useUpdaterStore((s) => s.check)
   const installUpdate = useUpdaterStore((s) => s.install)
+  const [detailOpen, setDetailOpen] = useState(false)
 
   const handleCheckUpdate = (): void => {
     setSettingsOpen(false)
     checkUpdate()
+  }
+
+  const handleCopyDetail = (): void => {
+    if (updaterDetail) void navigator.clipboard.writeText(updaterDetail)
   }
   // 持仓管理为带子菜单的父项，进入任一持仓相关路由时保持展开
   const [openKeys, setOpenKeys] = useState<string[]>(
@@ -379,8 +386,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                 )}
               </div>
 
-              {/* 更新状态条：仅在非 idle 时显示，避免常态占位 */}
-              {updaterPhase !== 'idle' && (
+              {/* 更新状态条：仅在非 idle 或有一次性的「已是最新版本」提示时显示 */}
+              {(updaterPhase !== 'idle' || updaterNotice) && (
                 <div style={{ padding: '8px 4px 4px', fontSize: 12, color: isDark ? 'rgba(244,244,245,0.72)' : 'rgba(30,30,34,0.5)' }}>
                   {updaterPhase === 'checking' && <span>正在检查更新…</span>}
 
@@ -403,8 +410,21 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                   )}
 
                   {updaterPhase === 'error' && (
-                    <span style={{ color: '#ef4444' }}>更新失败：{updaterMessage}</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
+                      {/* 只显示归一化后的短文案，原始错误（响应体 / 堆栈）收进「查看详情」 */}
+                      <span style={{ color: '#ef4444' }}>{updaterMessage}</span>
+                      {updaterDetail && (
+                        <span
+                          onClick={() => setDetailOpen(true)}
+                          style={{ fontSize: 11, opacity: 0.7, cursor: 'pointer', textDecoration: 'underline' }}
+                        >
+                          查看详情
+                        </span>
+                      )}
+                    </div>
                   )}
+
+                  {updaterNotice && <span style={{ color: '#22c55e' }}>{updaterNotice}</span>}
                 </div>
               )}
 
@@ -456,11 +476,48 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             minHeight: '100vh'
           }}
         >
-          <div className="page-content" style={{ maxWidth: contentMaxWidth }}>
-            {children}
-          </div>
-        </Content>
-      </Layout>
-    </Layout>
-  )
-}
+           <div className="page-content" style={{ maxWidth: contentMaxWidth }}>
+             {children}
+           </div>
+         </Content>
+       </Layout>
+
+       {/* 更新错误详情：原始错误可能很长（含响应体与堆栈），默认折叠，按需查看/复制 */}
+       <Modal
+         open={detailOpen}
+         title="更新错误详情"
+         onCancel={() => setDetailOpen(false)}
+         width={620}
+         footer={[
+           <Button key="copy" onClick={handleCopyDetail}>
+             复制
+           </Button>,
+           <Button key="close" type="primary" onClick={() => setDetailOpen(false)}>
+             关闭
+           </Button>
+         ]}
+       >
+         <div
+           style={{
+             maxHeight: 320,
+             overflow: 'auto',
+             whiteSpace: 'pre-wrap',
+             wordBreak: 'break-all',
+             fontFamily: 'ui-monospace, Menlo, Consolas, monospace',
+             fontSize: 11,
+             lineHeight: 1.6,
+             padding: 10,
+             borderRadius: 6,
+             background: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+             color: isDark ? 'rgba(244,244,245,0.75)' : 'rgba(30,30,34,0.7)'
+           }}
+         >
+           {updaterDetail}
+         </div>
+         <div style={{ fontSize: 11, opacity: 0.55, marginTop: 8 }}>
+           更新相关事件均记录在用户数据目录的 updater.log 中
+         </div>
+       </Modal>
+     </Layout>
+   )
+ }

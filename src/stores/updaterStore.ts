@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { UpdaterEvent } from '../../electron/services/updater-types'
+import type { UpdaterEvent, UpdaterErrorCode } from '../../electron/services/updater-types'
 
 export type UpdaterPhase =
   | 'idle'
@@ -13,7 +13,14 @@ interface UpdaterState {
   phase: UpdaterPhase
   version?: string
   percent: number
+  /** 可直接展示的简短错误文案 */
   message?: string
+  /** 错误分类 */
+  code?: UpdaterErrorCode
+  /** 原始错误（响应体 / 堆栈），只在用户主动点「查看详情」时展示 */
+  detail?: string
+  /** 一次性提示，例如「已是最新版本」，展示后自动清除 */
+  notice?: string
   /** 本次会话用户是否已关闭「更新已就绪」弹窗（关闭后不再主动打扰） */
   dismissed: boolean
 
@@ -29,23 +36,31 @@ interface UpdaterState {
   applyEvent: (event: UpdaterEvent) => void
 }
 
+let noticeTimer: ReturnType<typeof setTimeout> | null = null
+
+/** 设置一次性提示，若干秒后自动消失 */
+function setNotice(set: (partial: Partial<UpdaterState>) => void, text: string, ms = 3000): void {
+  set({ notice: text })
+  if (noticeTimer) clearTimeout(noticeTimer)
+  noticeTimer = setTimeout(() => set({ notice: undefined }), ms)
+}
+
 export const useUpdaterStore = create<UpdaterState>((set, get) => ({
   phase: 'idle',
   percent: 0,
   dismissed: false,
 
   check: async () => {
-    set({ phase: 'checking', percent: 0 })
+    set({ phase: 'checking', percent: 0, message: undefined, detail: undefined, notice: undefined })
     const result = await window.api.updater.check()
     if (!result.ok) {
-      set({
-        phase: 'error',
-        message: result.reason === 'dev-mode' ? '开发模式不支持更新' : result.reason || '检查失败'
-      })
+      // reason 已是主进程归一化后的短文案，detail 只在详情里看
+      set({ phase: 'error', message: result.reason || '检查失败', code: result.code, detail: result.detail })
       return
     }
     if (!result.updateAvailable) {
       set({ phase: 'idle', percent: 0 })
+      setNotice(set, '已是最新版本')
     }
   },
 
@@ -53,7 +68,10 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
     // autoDownload 开启后，check 结束即自动开始下载，无需重复触发
     if (get().phase === 'downloading' || get().phase === 'downloaded') return
     set({ phase: 'downloading', percent: 0 })
-    await window.api.updater.download()
+    const result = await window.api.updater.download()
+    if (!result.ok && result.reason) {
+      set({ phase: 'error', message: result.reason, code: result.code, detail: result.detail })
+    }
   },
 
   install: async () => {
@@ -71,6 +89,7 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
         set({ phase: 'available', version: event.version, percent: 0, dismissed: false })
         break
       case 'not-available':
+        // 静默轮询的结果不打扰用户，只回到空闲态
         set({ phase: 'idle', percent: 0 })
         break
       case 'progress':
@@ -81,7 +100,7 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
         set({ phase: 'downloaded', version: event.version, percent: 100, dismissed: false })
         break
       case 'error':
-        set({ phase: 'error', message: event.message })
+        set({ phase: 'error', message: event.message, code: event.code, detail: event.detail })
         break
     }
   }

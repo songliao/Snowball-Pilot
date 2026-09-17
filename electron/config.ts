@@ -27,3 +27,10 @@ export const UPDATER_GITHUB_REPO: string =
 // 私有仓库拉取 release 资源所需；公开仓库留空即可
 export const UPDATER_GITHUB_TOKEN: string =
   process.env.UPDATER_GITHUB_TOKEN || ''
+
+// 备用通道：GitHub API（api.github.com）在国内常被拦截、且未认证时只有 60 次/小时配额，
+// 检查失败会自动降级到这条直链——直接读 Release 资产，不经过 API。
+// 默认指向 GitHub 的 latest 资产直链；也可以指向自己的静态服务器。
+export const UPDATER_FALLBACK_URL: string =
+  process.env.UPDATER_FALLBACK_URL ||
+  `https://github.com/${UPDATER_GITHUB_OWNER}/${UPDATER_GITHUB_REPO}/releases/latest/download`
