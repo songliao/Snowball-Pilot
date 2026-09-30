@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, type ReactNode } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import {
   Card, Form, Input, InputNumber, DatePicker, Select, Button, Row, Col,
-  Space, Typography, message, Tag, Tooltip, Checkbox, theme
+  Space, Typography, message, Tag, Tooltip, Checkbox, theme, Modal, Alert
 } from 'antd'
 import {
   InfoCircleOutlined,
@@ -108,8 +108,15 @@ export default function PositionForm({ readOnly = false, bare = false }: { readO
     }
     setIsPhoenix(parsed.structureType === 'phoenix')
     form.setFieldsValue(values)
-    setImportWarnings(parsed.warnings ?? [])
-    message.success('已解析并填充字段，请核对后保存')
+    // 存在未映射字段时保持弹窗展开，让用户看到忽略了什么；全部识别成功则直接关闭
+    if ((parsed.warnings?.length ?? 0) > 0) {
+      setImportWarnings(parsed.warnings ?? [])
+      message.success('已解析并填充表单，未识别的字段见弹窗内提示')
+    } else {
+      setImportWarnings([])
+      setImportOpen(false)
+      message.success('已解析并填充字段，请核对后保存')
+    }
   }
 
   useEffect(() => {
@@ -738,9 +745,9 @@ export default function PositionForm({ readOnly = false, bare = false }: { readO
                 <Button
                   className="toolbar-btn"
                   icon={<span className="nav-icon-circle nav-icon-circle--import"><FileTextOutlined /></span>}
-                  onClick={() => setImportOpen((v) => !v)}
+                  onClick={() => setImportOpen(true)}
                 >
-                  {importOpen ? '收起导入' : '导入交易'}
+                  导入交易
                 </Button>
               )}
               <Button className="toolbar-btn" icon={<span className="nav-icon-circle"><RollbackOutlined /></span>} onClick={() => navigate(-1)}>取消</Button>
@@ -751,32 +758,34 @@ export default function PositionForm({ readOnly = false, bare = false }: { readO
           )}
         </Space>
       </div>
-      {(isImportMode || importOpen) && !readOnly && (
-        <div style={{ marginBottom: 16 }}>
-          <Input.TextArea
-            rows={6}
-            placeholder={'粘贴券商导出的合约文本，例如：\n交易编号: GTZQ-GYZQ-OPT-20260813-01\n结构类型: 早利雪球\n...'}
-            value={contractText}
-            onChange={(e) => setContractText(e.target.value)}
+      <Modal
+        open={importOpen && !readOnly}
+        title="导入交易"
+        width={620}
+        okText="解析并填充"
+        cancelText="关闭"
+        okButtonProps={{ disabled: !contractText.trim() }}
+        onOk={handleParseContract}
+        onCancel={() => setImportOpen(false)}
+        maskClosable
+        destroyOnHidden
+      >
+        <Input.TextArea
+          rows={12}
+          placeholder={'粘贴券商导出的合约文本（标准要素），例如：\n交易编号: GTZQ-GYZQ-OPT-20260813-01\n结构类型: 早利雪球\n挂钩标的: 中证500\n...\n\n敲出观察日:\n  2026-03-20 2026-04-20'}
+          value={contractText}
+          onChange={(e) => setContractText(e.target.value)}
+        />
+        {importWarnings.length > 0 && (
+          <Alert
+            style={{ marginTop: 12 }}
+            type="warning"
+            showIcon
+            message="表单已填充，以下字段未映射（无对应控件，已忽略）"
+            description={importWarnings.join('、')}
           />
-          <Space style={{ marginTop: 12 }}>
-            <Button
-              type="primary"
-              icon={<span className="nav-icon-circle nav-icon-circle--refresh"><RedoOutlined /></span>}
-              disabled={!contractText.trim()}
-              onClick={handleParseContract}
-            >
-              解析并填充
-            </Button>
-            <Button onClick={() => { setContractText(''); setImportWarnings([]) }}>清空</Button>
-          </Space>
-          {importWarnings.length > 0 && (
-            <div style={{ marginTop: 12, color: token.colorWarning, fontSize: 12 }}>
-              以下字段未映射（表单无对应控件，已忽略）：{importWarnings.join('、')}
-            </div>
-          )}
-        </div>
-      )}
+        )}
+      </Modal>
       {formBody}
     </div>
   )
