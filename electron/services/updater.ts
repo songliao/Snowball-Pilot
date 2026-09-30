@@ -79,7 +79,7 @@ function normalizeError(e: unknown): NormalizedError {
   if (/403|rate limit|abuse detection|too many requests/.test(probe)) {
     return { message: '更新服务器拒绝请求（GitHub 访问限流），请稍后再试', code: 'rate-limit', detail }
   }
-  if (/enetunreach|enotfound|eai_again|econnreset|econnrefused|etimedout|net::|socket hang up|getaddrinfo|network|timeout|ssl|certificate|unable to connect|premature close/.test(probe)) {
+  if (/enetunreach|enotfound|eai_again|econnreset|econnrefused|etimedout|timed out|net::|socket hang up|getaddrinfo|network|timeout|ssl|certificate|unable to connect|premature close/.test(probe)) {
     return { message: '网络连接失败，请检查网络后重试', code: 'network', detail }
   }
   if (/404|not found|no such file|enoent|cannot find/.test(probe)) {
@@ -124,18 +124,35 @@ function switchToFallback(): void {
 }
 
 /**
+ * 检查超时：api.github.com 在部分网络下会「黑洞」——连接不拒绝也不响应，
+ * electron-updater 的请求可能无限期挂起，界面就会永远停在「正在检查更新」。
+ * 超时后主动放弃等待（对 network 类错误降级重试一次）。
+ */
+const CHECK_TIMEOUT_MS = 30000
+
+function withTimeout<T>(p: Promise<T>, what: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${what} timed out after ${CHECK_TIMEOUT_MS}ms`)), CHECK_TIMEOUT_MS)
+    p.then(
+      (v) => { clearTimeout(timer); resolve(v) },
+      (e) => { clearTimeout(timer); reject(e) }
+    )
+  })
+}
+
+/**
  * 检查更新；主通道报「通道不可用」类错误时自动降级重试一次。
  * 404 / 校验失败这类错误降级也没用，直接抛出。
  */
 async function checkWithFallback(): Promise<UpdateCheckResult | null> {
   try {
-    return await autoUpdater.checkForUpdates()
+    return await withTimeout(autoUpdater.checkForUpdates(), 'update check')
   } catch (e) {
     if (usingFallback || UPDATER_PROVIDER !== 'github') throw e
     const code = normalizeError(e).code
     if (code === 'network' || code === 'rate-limit' || code === 'not-found') {
       switchToFallback()
-      return await autoUpdater.checkForUpdates()
+      return await withTimeout(autoUpdater.checkForUpdates(), 'update check (fallback)')
     }
     throw e
   }
