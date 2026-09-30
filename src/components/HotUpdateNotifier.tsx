@@ -80,6 +80,7 @@ export default function HotUpdateNotifier() {
         <Modal
           open={phase === 'ready'}
           title="界面更新已就绪"
+          className="update-solid-modal"
           okText="立即刷新"
           cancelText="下次启动时生效"
           onOk={reload}
