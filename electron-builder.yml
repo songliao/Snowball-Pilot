@@ -60,7 +60,7 @@ mac:
   target:
     - dmg
     - zip
-  artifactName: ${productName}-${version}-${arch}.${ext}
+  artifactName: Snowball-Pilot-${version}-${arch}.${ext}
 win:
   icon: resources/icon.ico
   target:
