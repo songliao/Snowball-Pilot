@@ -1,6 +1,6 @@
 {
   "name": "snowball-pilot",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "description": "Snowball Pilot - OTC derivatives position management desktop app",
   "main": "./out/main/index.js",
   "author": "Snowball Pilot",
