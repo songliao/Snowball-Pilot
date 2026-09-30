@@ -1,6 +1,6 @@
 import { ReactNode, useState, useRef, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Layout, Menu, Popover, Segmented, Divider, Button, Progress, Modal } from 'antd'
+import { Layout, Menu, Popover, Segmented, Divider, Button, Progress, Modal, message } from 'antd'
 import {
   CompassOutlined,
   WalletOutlined,
@@ -112,6 +112,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     // 弹层保持展开，让用户看到「正在检查… → 结果」；没有更新时展示「已是最新版本」提示，停顿后再收起弹层
     const result = await checkUpdate()
     if (result === false) {
+      // 全局 toast：弹层内的绿色提示容易被忽略，这里给一个明确的反馈
+      message.info('当前已是最新版本')
       setTimeout(() => setSettingsOpen(false), 1800)
     } else if (result === true) {
       // 发现新版本：全局进度卡片与就绪弹窗接管，弹层即可收起
