@@ -108,9 +108,16 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const installUpdate = useUpdaterStore((s) => s.install)
   const [detailOpen, setDetailOpen] = useState(false)
 
-  const handleCheckUpdate = (): void => {
-    setSettingsOpen(false)
-    checkUpdate()
+  const handleCheckUpdate = async (): Promise<void> => {
+    // 弹层保持展开，让用户看到「正在检查… → 结果」；没有更新时展示「已是最新版本」提示，停顿后再收起弹层
+    const result = await checkUpdate()
+    if (result === false) {
+      setTimeout(() => setSettingsOpen(false), 1800)
+    } else if (result === true) {
+      // 发现新版本：全局进度卡片与就绪弹窗接管，弹层即可收起
+      setSettingsOpen(false)
+    }
+    // result === null（检查失败）：弹层保持展开，展示错误文案与「查看详情」
   }
 
   const handleCopyDetail = (): void => {

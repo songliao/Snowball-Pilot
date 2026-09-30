@@ -116,6 +116,17 @@ jobs:
           npm run build
           npx electron-builder --mac --x64 --arm64 --publish never
 
+      # 渲染层热更新包：平台无关，构建一次即可。hotIndex=0 为基础包（客户端跳过），
+      # 之后只发前端热修复时，本地 HOTUPDATE_INDEX=1 npm run hotupdate 再手动
+      # gh release upload 即可，无需重新发版。
+      - name: 构建热更新包
+        run: npm run hotupdate
+
+      - name: 上传热更新产物
+        run: |
+          cd dist/hot-update
+          gh release upload "$TAG" renderer-*.zip hot-update.json --clobber
+
       - name: 上传 macOS 产物
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

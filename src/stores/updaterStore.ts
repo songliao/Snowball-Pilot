@@ -25,7 +25,8 @@ interface UpdaterState {
   dismissed: boolean
 
   /** 主动检查更新（主进程启动后也会静默查一次） */
-  check: () => Promise<void>
+  /** 主动检查更新（主进程启动后也会静默查一次）；返回 true=有更新 / false=已是最新 / null=检查失败 */
+  check: () => Promise<boolean | null>
   /** 手动触发下载；autoDownload 已开启时通常不需要调用 */
   download: () => Promise<void>
   /** 退出并应用已下载的更新 */
@@ -56,12 +57,14 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
     if (!result.ok) {
       // reason 已是主进程归一化后的短文案，detail 只在详情里看
       set({ phase: 'error', message: result.reason || '检查失败', code: result.code, detail: result.detail })
-      return
+      return null
     }
     if (!result.updateAvailable) {
       set({ phase: 'idle', percent: 0 })
       setNotice(set, '已是最新版本')
+      return false
     }
+    return true
   },
 
   download: async () => {

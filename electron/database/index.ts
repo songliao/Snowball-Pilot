@@ -163,6 +163,8 @@ function setupSchema(): void {
   migrateSnowballColumns()
   // 凤凰表字段演进迁移（仅对旧库生效）
   migratePhoenixColumns()
+  // 公共列字段演进迁移：簿记账户 / 交易方向 / 销售部门（仅对旧库生效）
+  migrateCommonColumns()
   // events 兼容旧数据：补齐 structure_type 列
   try {
     db!.run(`ALTER TABLE events ADD COLUMN structure_type TEXT DEFAULT 'snowball';`)
@@ -327,6 +329,9 @@ const COL_TYPES: Record<string, string> = {
   product_name: "TEXT DEFAULT ''",
   broker: "TEXT DEFAULT ''",
   contract_no: "TEXT DEFAULT ''",
+  booking_account: "TEXT DEFAULT ''",
+  trade_direction: "TEXT DEFAULT ''",
+  sales_department: "TEXT DEFAULT ''",
   underlying_code: "TEXT DEFAULT ''",
   notional: 'REAL DEFAULT 0',
   initial_price: 'REAL DEFAULT 0',
@@ -502,5 +507,21 @@ function migratePhoenixColumns(): void {
   ]
   for (const [c, def] of phoenixAdd) {
     if (!has(c)) db.run(`ALTER TABLE ${PHOENIX_TABLE} ADD COLUMN ${c} ${def}`)
+  }
+}
+
+// 公共列字段演进迁移：两张表统一补齐新增的公共列（仅对旧库生效，新库按新 schema 建表无需迁移）
+function migrateCommonColumns(): void {
+  if (!db) return
+  for (const table of [SNOWBALL_TABLE, PHOENIX_TABLE]) {
+    const cols = queryAll<{ name: string }>(`PRAGMA table_info(${table})`).map((r) => r.name)
+    const add: [string, string][] = [
+      ['booking_account', "TEXT DEFAULT ''"],
+      ['trade_direction', "TEXT DEFAULT ''"],
+      ['sales_department', "TEXT DEFAULT ''"]
+    ]
+    for (const [c, def] of add) {
+      if (!cols.includes(c)) db.run(`ALTER TABLE ${table} ADD COLUMN ${c} ${def}`)
+    }
   }
 }

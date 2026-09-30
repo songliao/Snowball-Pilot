@@ -34,3 +34,12 @@ export const UPDATER_GITHUB_TOKEN: string =
 export const UPDATER_FALLBACK_URL: string =
   process.env.UPDATER_FALLBACK_URL ||
   `https://github.com/${UPDATER_GITHUB_OWNER}/${UPDATER_GITHUB_REPO}/releases/latest/download`
+
+// ——— 渲染层热更新 ———
+// 清单文件（hot-update.json）的 URL，包内资源（renderer-*.zip）按相对清单所在目录解析。
+// github 通道走 latest 资产直链（不经 API、无配额限制）；generic 通道走静态服务器。
+export const HOTUPDATE_MANIFEST_URL: string =
+  process.env.HOTUPDATE_MANIFEST_URL ||
+  (UPDATER_PROVIDER === 'generic'
+    ? `${UPDATER_BASE_URL}/hot-update.json`
+    : `${UPDATER_FALLBACK_URL}/hot-update.json`)

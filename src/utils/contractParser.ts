@@ -1,12 +1,15 @@
 // 合约文本导入解析器
-// 将券商导出的雪球合约文本自动识别并映射为持仓表单字段（snake_case，与 PositionForm 一致）。
-// 仅填充「新增持仓」表单中真实存在的字段；其余信息（希腊字母、报价参数等）表单无对应控件，忽略。
+// 将券商导出的雪球/凤凰合约文本（标准要素格式）自动识别并映射为持仓表单字段（snake_case，与 PositionForm 一致）。
+// 表单/数据库暂无对应控件的字段（交易类型、报价参数、希腊字母等）会收集进 warnings，由 UI 提示「已忽略」。
 
 export interface ParsedContract {
   structureType: 'snowball' | 'phoenix' | 'airbag'
   product_name?: string
   contract_no?: string
   broker?: string
+  booking_account?: string // 簿记账户（对冲 / 自营 等，自由文本）
+  trade_direction?: string // 交易方向（sell 卖出 / buy 买入）
+  sales_department?: string // 销售部门
   underlying_code?: string
   notional?: number
   trade_start_date?: string // YYYY-MM-DD
@@ -31,6 +34,9 @@ export interface ParsedContract {
   abs_fee_pct?: number
   annual_fee_pct?: number
   income_dividend_pct?: number
+  coupon_barrier?: number // 凤凰派息障碍价格
+  coupon_rate?: number // 凤凰派息率（单值）
+  coupon_dates?: string // 凤凰派息观察日（多行/空格分隔的日期）
   notes?: string
   warnings: string[] // 未识别或无法映射的字段，供 UI 提示
 }
@@ -49,6 +55,9 @@ const SIMPLE_FIELDS: Record<string, { field: keyof ParsedContract; handle?: Valu
   交易编号: { field: 'contract_no', handle: (v) => v.trim() },
   结构类型: { field: 'structureType', handle: (v) => deriveStructureType(v) },
   交易对手方: { field: 'broker', handle: (v) => v.trim() },
+  簿记账户: { field: 'booking_account', handle: (v) => v.trim() },
+  交易方向: { field: 'trade_direction', handle: (v) => mapTradeDirection(v) },
+  销售部门: { field: 'sales_department', handle: (v) => v.trim() },
   名义本金: { field: 'notional', handle: (v) => toNumber(v) },
   交易日期: { field: 'trade_start_date', handle: (v) => toDateStr(v) },
   期初价格: { field: 'initial_price', handle: (v) => toNumber(v) },
@@ -68,8 +77,9 @@ const SIMPLE_FIELDS: Record<string, { field: keyof ParsedContract; handle?: Valu
   '计息结算T': { field: 'accrual_settle_tplus', handle: (v) => toNumber(v) },
   红利票息: { field: 'maturity_coupon', handle: (v) => toPercent(v) },
   票息障碍价格: { field: 'coupon_barrier', handle: (v) => toPercent(v) }, // 凤凰派息障碍价格
+  派息障碍价格: { field: 'coupon_barrier', handle: (v) => toPercent(v) }, // 凤凰派息障碍价格（标准要素用名）
   派息率: { field: 'coupon_rate', handle: (v) => toPercent(v) }, // 凤凰派息率（单值）
-  备注信息: { field: 'notes', handle: (v) => v.trim() },
+  备注信息: { field: 'notes', handle: (v) => (v.trim() === '-' ? '' : v.trim()) },
   挂钩标的: { field: 'underlying_code', handle: (v) => mapUnderlying(v) }
 }
 
@@ -78,6 +88,7 @@ const SIMPLE_FIELDS: Record<string, { field: keyof ParsedContract; handle?: Valu
 const LIST_FIELDS: Record<string, keyof ParsedContract> = {
   敲出观察日: 'knock_out_dates',
   敲出障碍价格: 'knock_out_barriers',
+  敲出票息: 'knock_out_coupons', // 标准要素格式的雪球敲出票息
   票息: 'knock_out_coupons', // 兼容「票息/派息率(%)」归一化后
   派息观察日: 'coupon_dates' // 凤凰派息观察日
 }
@@ -110,9 +121,18 @@ function toDateStr(raw: string): string | undefined {
 
 function deriveStructureType(raw: string): ParsedContract['structureType'] {
   const v = raw.trim()
-  if (v.includes('凤凰') || v.includes('DCN') || v.includes('降敲')) return 'phoenix'
+  // 判定依据是产品家族而不是「降敲」等收益特征：降敲早利雪球、降敲雪球都是雪球，
+  // 只有凤凰/DCN 才进凤凰表（历史上曾把「降敲」误判为凤凰，导致交易存错表）
+  if (v.includes('凤凰') || v.includes('DCN')) return 'phoenix'
   if (v.includes('气囊')) return 'airbag'
-  return 'snowball' // 雪球 / 早利雪球 / 平敲雪球 等
+  return 'snowball' // 雪球 / 早利雪球 / 降敲早利雪球 / 平敲雪球 等
+}
+
+function mapTradeDirection(raw: string): string {
+  const v = raw.trim()
+  if (v.includes('卖') || /sell/i.test(v)) return 'sell'
+  if (v.includes('买') || /buy/i.test(v)) return 'buy'
+  return v
 }
 
 function mapKnockInObservation(raw: string): string {
@@ -144,6 +164,7 @@ export function parseContractText(text: string): ParsedContract {
   const lines = text.split(/\r?\n/)
   let currentListField: keyof ParsedContract | null = null
   const listBuffers: Partial<Record<keyof ParsedContract, string[]>> = {}
+  const unmapped = new Set<string>()
 
   for (const rawLine of lines) {
     const line = rawLine.trim()
@@ -160,7 +181,8 @@ export function parseContractText(text: string): ParsedContract {
     if (kvMatch) {
       const key = normalizeKey(kvMatch[1])
       const value = kvMatch[2].trim()
-      const mapped = SIMPLE_FIELDS[key]
+      // 标准要素会给数值字段带「(%)」后缀（如「交易佣金(%)」），先精确匹配再按去括号归一化匹配
+      const mapped = SIMPLE_FIELDS[key] ?? SIMPLE_FIELDS[stripListKey(key)]
       if (mapped) {
         const parsed = mapped.handle ? mapped.handle(value) : value
         if (parsed !== undefined) {
@@ -176,7 +198,8 @@ export function parseContractText(text: string): ParsedContract {
         if (!listBuffers[f]) listBuffers[f] = []
         continue
       }
-      // 已知但无表单字段的键（如 期限、希腊字母等）忽略
+      // 未映射的键（交易类型、报价参数、希腊字母等）记录下来供 UI 提示
+      unmapped.add(stripListKey(key))
       continue
     }
 
@@ -189,9 +212,13 @@ export function parseContractText(text: string): ParsedContract {
     // 其它无法识别的行忽略
   }
 
-  // 回填列表字段（多行文本，与表单 parseDateList / parseNumberList 的分割规则一致）
+  // 回填列表字段（多行文本，与表单 parseDateList / parseNumberList 的分割规则一致）；
+  // 纯数字 token 规范化为去尾零的数值文本（100.0000 → 100），日期保持原样
   for (const f of Object.keys(listBuffers) as (keyof ParsedContract)[]) {
-    const arr = (listBuffers[f] ?? []).map((s) => s.replace(/[%,]/g, '').trim()).filter(Boolean)
+    const arr = (listBuffers[f] ?? [])
+      .map((s) => s.replace(/[%,]/g, '').trim())
+      .filter(Boolean)
+      .map((s) => (/^-?\d+(\.\d+)?$/.test(s) ? String(Number(s)) : s))
     if (arr.length) {
       ;(result as Record<string, unknown>)[f as string] = arr.join('\n')
     }
@@ -204,5 +231,6 @@ export function parseContractText(text: string): ParsedContract {
     if (m) result.product_name = m[1].trim()
   }
 
+  result.warnings = Array.from(unmapped)
   return result
 }

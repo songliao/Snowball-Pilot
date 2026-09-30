@@ -9,6 +9,7 @@ import { registerPriceHandlers } from './database/prices'
 import { registerEventHandlers } from './database/events'
 import { fetchMarketPrice, fetchIndexQuote, fetchKline } from './services/market-data'
 import { registerUpdateHandlers } from './services/updater'
+import { registerHotUpdateHandlers, resolveRendererEntry } from './services/hot-update'
 import { saveDailyClose, backfillHistory, backfillSingleCode, ensureHistoryBackfilled, getIndexHistory, refreshToToday } from './services/index-history'
 import { checkAndNotify } from './services/notification'
 
@@ -277,7 +278,8 @@ function createWindow(): void {
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    // 打包环境优先加载已应用的热更新包（userData 下），无效时回退内置渲染层
+    mainWindow.loadFile(resolveRendererEntry())
   }
 }
 
@@ -480,6 +482,9 @@ app.whenReady().then(async () => {
 
   // 自动更新（开发模式内部自动跳过）
   registerUpdateHandlers(mainWindow)
+
+  // 渲染层热更新（开发模式内部自动跳过）
+  registerHotUpdateHandlers(mainWindow)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

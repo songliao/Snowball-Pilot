@@ -1,0 +1,98 @@
+name: Hot Update
+
+# 手动触发的前端热修复发布：构建渲染层热更新包，覆盖上传到指定 Release。
+# 客户端会自动发现并静默下载，用户点击「立即刷新」即生效，无需重装应用。
+#
+# 适用场景：只改了 src/ 下的前端代码。主进程 / preload / 原生依赖的变更
+# 必须走正常发版（推 v* tag），否则渲染层会与 preload 的 IPC 契约不配套。
+#
+# 使用：Actions 页面 → Hot Update → Run workflow，填三个输入框：
+#   tag        目标 Release 标签，需已存在（如 v1.0.11）
+#   hot_index  热更新序号，同一版本内从 1 开始递增（1、2、3…），0 是随正式发版的基础包
+#   notes      更新说明，会展示给用户，可留空
+#
+# 注意两点：
+# 1. 代码从默认分支检出，且校验「分支上 package.json 的版本 = 目标标签版本」，
+#    保证渲染层与目标版本的主进程配套。因此只能给「当前分支版本对应的那个
+#    Release」发热修复；想给更老的版本修，需要先切分支或恢复正常发版。
+# 2. 客户端读取的是 latest Release 上的 hot-update.json，清单会被本次产物覆盖
+#    （只保留最新一条，这正是预期：新包序号更大，已应用旧包的用户也会收到）。
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '目标 Release 标签（需已存在，如 v1.0.11）'
+        required: true
+      hot_index:
+        description: '热更新序号（1、2、3…递增）'
+        required: true
+      notes:
+        description: '更新说明（展示给用户，可留空）'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-upload:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      INPUT_TAG: ${{ inputs.tag }}
+      INPUT_HOT_INDEX: ${{ inputs.hot_index }}
+      INPUT_NOTES: ${{ inputs.notes }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: 校验输入
+        run: |
+          TAG="$INPUT_TAG"
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::标签格式应为 vX.Y.Z，收到：$TAG"
+            exit 1
+          fi
+          case "$INPUT_HOT_INDEX" in
+            ''|*[!0-9]*)
+              echo "::error::hot_index 必须是非负整数，收到：$INPUT_HOT_INDEX"
+              exit 1 ;;
+          esac
+          VERSION=$(node -p "require('./package.json').version")
+          if [ "${TAG#v}" != "$VERSION" ]; then
+            echo "::error::标签 $TAG 与当前分支 package.json 版本 $VERSION 不一致，热更新包必须与目标版本的主进程配套"
+            exit 1
+          fi
+          # Release 必须已存在（热修复是往已有 Release 上追加资产，不新建）
+          if ! gh release view "$TAG" --json name >/dev/null 2>&1; then
+            echo "::error::Release $TAG 不存在，请先推 v* tag 完成正常发版"
+            exit 1
+          fi
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          echo "HOTUPDATE_INDEX=$INPUT_HOT_INDEX" >> "$GITHUB_ENV"
+          echo "HOTUPDATE_NOTES=$INPUT_NOTES" >> "$GITHUB_ENV"
+          echo "校验通过：将构建 $TAG 的热更新包 hotIndex=$INPUT_HOT_INDEX"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: 构建
+        run: npm run build
+
+      - name: 构建热更新包
+        run: npm run hotupdate
+
+      - name: 上传到 Release
+        run: |
+          cd dist/hot-update
+          # --clobber：同名资产直接覆盖，重跑幂等
+          gh release upload "$TAG" renderer-*.zip hot-update.json --clobber
+          echo "已上传到 $TAG："
+          gh release view "$TAG" --json assets -q '.assets[].name' | grep -E 'renderer-|hot-update'

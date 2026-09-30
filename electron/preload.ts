@@ -1,12 +1,16 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { KLinePoint } from './services/market-data'
 import type { UpdaterEvent, UpdaterErrorCode } from './services/updater-types'
+import type { HotUpdateEvent, HotUpdateErrorCode } from './services/hot-update-types'
 
 export interface PositionData {
   id?: number
   structure_type?: string // 'snowball' 雪球 | 'phoenix' 凤凰
   // 通用簿记
   contract_no?: string // 合约编号
+  booking_account?: string // 簿记账户（对冲 / 自营 等，自由文本）
+  trade_direction?: string // 交易方向（sell 卖出 / buy 买入）
+  sales_department?: string // 销售部门
   // 起息日（雪球/凤凰共用）
   trade_start_date?: string
   // 敲出参数（序列以 JSON 字符串存储）
@@ -244,6 +248,21 @@ const api = {
       ipcRenderer.on('updater:event', listener)
       return () => {
         ipcRenderer.removeListener('updater:event', listener)
+      }
+    }
+  },
+
+  // 渲染层热更新：主进程静默下载并校验前端包，这里只负责订阅事件与触发刷新。
+  // 开发模式下主进程不产生任何事件，UI 自然不出现。
+  hotUpdate: {
+    /** 用当前生效的渲染层包重载主窗口（热更新就绪后由用户点击触发） */
+    reload: (): Promise<boolean> => ipcRenderer.invoke('hotupdate:reload'),
+    /** 订阅热更新状态推送，返回取消订阅函数 */
+    onEvent: (cb: (event: HotUpdateEvent) => void): (() => void) => {
+      const listener = (_e: Electron.IpcRendererEvent, event: HotUpdateEvent): void => cb(event)
+      ipcRenderer.on('hotupdate:event', listener)
+      return () => {
+        ipcRenderer.removeListener('hotupdate:event', listener)
       }
     }
   }
