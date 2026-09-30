@@ -138,6 +138,17 @@ jobs:
           gh release upload "$TAG" *.dmg --clobber
           gh release upload "$TAG" *.zip --clobber
 
+      # 固定名别名资产：下载页通过 releases/latest/download/<固定名> 提供始终指向
+      # 最新版的稳定链接（不含版本号，每次发版覆盖）
+      - name: 上传固定名下载链接资产
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd dist
+          cp *arm64.dmg Snowball-Pilot-macOS-arm64.dmg
+          cp *x64.dmg Snowball-Pilot-macOS-x64.dmg
+          gh release upload "$TAG" Snowball-Pilot-macOS-arm64.dmg Snowball-Pilot-macOS-x64.dmg --clobber
+
       - name: 清理钥匙串
         if: always() && env.APPLE_CERT_BASE64 != ''
         run: security delete-keychain "$RUNNER_TEMP/build.keychain" || true
@@ -166,3 +177,13 @@ jobs:
         run: |
           npm run build
           npx electron-builder --win --publish always
+
+      # 固定名别名资产：下载页通过 releases/latest/download/<固定名> 提供稳定链接
+      - name: 上传固定名下载链接资产
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $v = node -p "require('./package.json').version"
+          Copy-Item "dist/Snowball-Pilot-$v-setup.exe" "dist/Snowball-Pilot-Windows-Setup.exe"
+          Copy-Item "dist/Snowball-Pilot-$v-portable.exe" "dist/Snowball-Pilot-Windows-Portable.exe"
+          gh release upload "v$v" "dist/Snowball-Pilot-Windows-Setup.exe" "dist/Snowball-Pilot-Windows-Portable.exe" --clobber
