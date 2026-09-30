@@ -761,6 +761,7 @@ export default function PositionForm({ readOnly = false, bare = false }: { readO
       <Modal
         open={importOpen && !readOnly}
         title="导入交易"
+        className="solid-modal"
         width={620}
         okText="解析并填充"
         cancelText="关闭"

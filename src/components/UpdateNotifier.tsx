@@ -72,7 +72,7 @@ export default function UpdateNotifier() {
         <Modal
           open={showReady}
           title="新版本已就绪"
-          className="update-solid-modal"
+          className="solid-modal"
           okText="立即重启并安装"
           cancelText="稍后"
           onOk={install}

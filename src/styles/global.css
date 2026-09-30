@@ -1888,7 +1888,7 @@ html, body {
 }
 
 /* ===== 更新弹窗：按钮实底（覆盖上面全局 modal footer 的磨砂样式） ===== */
-.ant-modal.update-solid-modal .ant-modal-footer .ant-btn {
+.ant-modal.solid-modal .ant-modal-footer .ant-btn {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   background: #ffffff !important;
@@ -1896,26 +1896,26 @@ html, body {
   box-shadow: none !important;
   color: #1e1e22 !important;
 }
-.ant-modal.update-solid-modal .ant-modal-footer .ant-btn:hover {
+.ant-modal.solid-modal .ant-modal-footer .ant-btn:hover {
   background: #f4f4f5 !important;
   border-color: rgba(0, 0, 0, 0.2) !important;
   color: #0f172a !important;
 }
-.ant-modal.update-solid-modal .ant-modal-footer .ant-btn:active {
+.ant-modal.solid-modal .ant-modal-footer .ant-btn:active {
   background: #e4e4e7 !important;
 }
-.ant-modal.update-solid-modal .ant-modal-footer .ant-btn-primary {
+.ant-modal.solid-modal .ant-modal-footer .ant-btn-primary {
   background: #2563eb !important;
   border: 1px solid #2563eb !important;
   color: #ffffff !important;
   box-shadow: 0 1px 3px rgba(37, 99, 235, 0.3) !important;
 }
-.ant-modal.update-solid-modal .ant-modal-footer .ant-btn-primary:hover {
+.ant-modal.solid-modal .ant-modal-footer .ant-btn-primary:hover {
   background: #1d4ed8 !important;
   border-color: #1d4ed8 !important;
   color: #ffffff !important;
 }
-.ant-modal.update-solid-modal .ant-modal-footer .ant-btn-primary:active {
+.ant-modal.solid-modal .ant-modal-footer .ant-btn-primary:active {
   background: #1e40af !important;
   color: #ffffff !important;
 }
