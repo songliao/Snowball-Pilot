@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { HashRouter, Routes, Route } from 'react-router-dom'
 import { ConfigProvider, theme as antTheme, message } from 'antd'
 import zhCN from 'antd/locale/zh_CN'
@@ -74,6 +74,36 @@ export default function App() {
       isDark ? '#e4e4e7' : '#333333'
     )
   }, [isDark, mode])
+
+  // Windows：Modal 遮罩只能压暗网页内容，原生窗口控制按钮（最小化/最大化/关闭）
+  // 由系统绘制、盖在遮罩之上，会出现「弹窗变暗但按钮不变暗」的不一致。
+  // 监听 antd Modal 遮罩的出现/消失，把覆盖层颜色同步调成压暗版本，关闭后恢复。
+  // （macOS 红绿灯由系统管理，updateTitlebarOverlay 在主进程里对 darwin 是 no-op）
+  const titlebarDimmedRef = useRef(false)
+  useEffect(() => {
+    const blend = (hex: string, keep: number): string => {
+      const n = parseInt(hex.slice(1), 16)
+      const ch = (v: number): string => Math.round(v * keep).toString(16).padStart(2, '0')
+      return `#${ch((n >> 16) & 255)}${ch((n >> 8) & 255)}${ch(n & 255)}`
+    }
+    const apply = (): void => {
+      const maskOpen = Boolean(document.querySelector('.ant-modal-mask'))
+      if (maskOpen === titlebarDimmedRef.current) return
+      titlebarDimmedRef.current = maskOpen
+      const bg = isDark ? '#09090b' : '#f5f5f4'
+      const fg = isDark ? '#e4e4e7' : '#333333'
+      // 压暗系数与 antd 遮罩一致（rgba(0,0,0,0.45) → 保留 55% 亮度）
+      if (maskOpen) {
+        window.api.app.updateTitlebarOverlay(blend(bg, 0.55), blend(fg, 0.55))
+      } else {
+        window.api.app.updateTitlebarOverlay(bg, fg)
+      }
+    }
+    apply()
+    const observer = new MutationObserver(apply)
+    observer.observe(document.body, { childList: true, subtree: true })
+    return () => observer.disconnect()
+  }, [isDark])
 
   // 暴露运行平台到根元素：macOS 使用无边框 + 内嵌红绿灯，
   // Windows 使用隐藏标题栏 + 窗口控制按钮覆盖层
