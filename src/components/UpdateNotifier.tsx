@@ -1,7 +1,8 @@
 import { useEffect } from 'react'
-import { Modal, Progress } from 'antd'
+import { ConfigProvider, Modal, Progress } from 'antd'
 import { useUpdaterStore } from '../stores/updaterStore'
 import { useThemeStore } from '../stores/themeStore'
+import { solidButtonTheme } from '../utils/solidButtonTheme'
 
 /**
  * 全局更新提示：挂在主界面外层，登录页同样可见。
@@ -66,21 +67,24 @@ export default function UpdateNotifier() {
         </div>
       )}
 
-      <Modal
-        open={showReady}
-        title="新版本已就绪"
-        okText="立即重启并安装"
-        cancelText="稍后"
-        onOk={install}
-        onCancel={dismiss}
-        closable={false}
-        maskClosable={false}
-        width={380}
-      >
-        <div style={{ fontSize: 13, lineHeight: 1.7 }}>
-          版本 <strong>{version}</strong> 已下载完成，重启应用即可生效。
-        </div>
-      </Modal>
+      {/* 按钮不使用全局磨砂默认样式：包一层局部主题改为实底 */}
+      <ConfigProvider theme={solidButtonTheme(isDark)}>
+        <Modal
+          open={showReady}
+          title="新版本已就绪"
+          okText="立即重启并安装"
+          cancelText="稍后"
+          onOk={install}
+          onCancel={dismiss}
+          closable={false}
+          maskClosable={false}
+          width={380}
+        >
+          <div style={{ fontSize: 13, lineHeight: 1.7 }}>
+            版本 <strong>{version}</strong> 已下载完成，重启应用即可生效。
+          </div>
+        </Modal>
+      </ConfigProvider>
     </>
   )
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Modal, Progress } from 'antd'
+import { ConfigProvider, Modal, Progress } from 'antd'
 import { useThemeStore } from '../stores/themeStore'
+import { solidButtonTheme } from '../utils/solidButtonTheme'
 import type { HotUpdateEvent } from '../../electron/services/hot-update-types'
 
 /**
@@ -74,24 +75,27 @@ export default function HotUpdateNotifier() {
         </div>
       )}
 
-      <Modal
-        open={phase === 'ready'}
-        title="界面更新已就绪"
-        okText="立即刷新"
-        cancelText="下次启动时生效"
-        onOk={reload}
-        onCancel={() => setPhase('idle')}
-        closable={false}
-        maskClosable={false}
-        width={380}
-      >
-        <div style={{ fontSize: 13, lineHeight: 1.7 }}>
-          新版界面 <strong>{version}</strong> 已下载完成，刷新后立即生效，无需重启应用。
-          {notes && (
-            <div style={{ marginTop: 8, color: muted, whiteSpace: 'pre-wrap' }}>{notes}</div>
-          )}
-        </div>
-      </Modal>
+      {/* 按钮不使用全局磨砂默认样式：包一层局部主题改为实底 */}
+      <ConfigProvider theme={solidButtonTheme(isDark)}>
+        <Modal
+          open={phase === 'ready'}
+          title="界面更新已就绪"
+          okText="立即刷新"
+          cancelText="下次启动时生效"
+          onOk={reload}
+          onCancel={() => setPhase('idle')}
+          closable={false}
+          maskClosable={false}
+          width={380}
+        >
+          <div style={{ fontSize: 13, lineHeight: 1.7 }}>
+            新版界面 <strong>{version}</strong> 已下载完成，刷新后立即生效，无需重启应用。
+            {notes && (
+              <div style={{ marginTop: 8, color: muted, whiteSpace: 'pre-wrap' }}>{notes}</div>
+            )}
+          </div>
+        </Modal>
+      </ConfigProvider>
     </>
   )
 }
