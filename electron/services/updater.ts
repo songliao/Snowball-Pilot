@@ -37,8 +37,13 @@ let availableInfo: UpdateInfo | null = null
 let usingFallback = false
 
 function emit(event: UpdaterEvent): void {
-  if (mainWindowRef && !mainWindowRef.isDestroyed()) {
-    mainWindowRef.webContents.send('updater:event', event)
+  // 广播给所有存活窗口，而不是记住的单一引用：macOS 上窗口关闭再重开
+  // （应用不退出）时旧引用已销毁，事件会全部丢失，界面将永远停在「检查更新」
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (win.isDestroyed()) continue
+    // 关于窗口加载的是 data: URL，不属于渲染层
+    if (win.webContents.getURL().startsWith('data:')) continue
+    win.webContents.send('updater:event', event)
   }
 }
 

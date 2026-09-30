@@ -53,8 +53,11 @@ let appliedHotIndex = 0
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
 function emit(event: HotUpdateEvent): void {
-  if (mainWindowRef && !mainWindowRef.isDestroyed()) {
-    mainWindowRef.webContents.send('hotupdate:event', event)
+  // 广播给所有存活窗口（含窗口重建场景），避免事件发进已销毁的旧引用
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (win.isDestroyed()) continue
+    if (win.webContents.getURL().startsWith('data:')) continue
+    win.webContents.send('hotupdate:event', event)
   }
 }
 
