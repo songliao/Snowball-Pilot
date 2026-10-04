@@ -119,6 +119,8 @@ const api = {
       ipcRenderer.invoke('prices:get-by-code', code, limit),
     getLatest: (code: string): Promise<PriceData | null> =>
       ipcRenderer.invoke('prices:get-latest', code),
+    getLatestDate: (): Promise<string | null> =>
+      ipcRenderer.invoke('prices:get-latest-date'),
     upsert: (data: Omit<PriceData, 'id'>): Promise<{ ok: boolean; reason?: string }> =>
       ipcRenderer.invoke('prices:upsert', data),
     deleteByCode: (code: string): Promise<boolean> =>

@@ -34,6 +34,15 @@ export function registerPriceHandlers(): void {
     )
   })
 
+  // 全表最新行情日期（取最大交易日，排除周末）：用于「数据截止日期」提示，进页面即可显示
+  ipcMain.handle('prices:get-latest-date', () => {
+    const row = queryOne<{ date: string }>(
+      `SELECT MAX(date) AS date FROM price_history
+       WHERE strftime('%w', date) NOT IN ('0','6')`
+    )
+    return row?.date ?? null
+  })
+
   // 插入或更新价格（含开高低收与成交量）
   ipcMain.handle('prices:upsert', (_event, data) => {
     // 非交易日保护：A 股周末从不开市，手动写入周末日期属于脏数据，
