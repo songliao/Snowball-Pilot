@@ -10,6 +10,10 @@
 export const API_BASE_URL: string =
   process.env.API_BASE_URL || 'http://8.159.158.153:6001'
 
+// 备用鉴权服务地址：主地址网络不可达时自动切换（不含尾部斜杠）
+export const API_FALLBACK_URL: string =
+  process.env.API_FALLBACK_URL || 'http://8.159.158.153:6006'
+
 // ——— 自动更新（electron-updater）———
 // 更新通道类型：github（GitHub Releases，默认，仓库已公开无需 token）| generic（自有静态服务器）
 export const UPDATER_PROVIDER: 'generic' | 'github' =

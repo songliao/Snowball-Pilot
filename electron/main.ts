@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, shell, net, Menu, nativeTheme, safeStorage
 import { join } from 'path'
 import { readFileSync } from 'fs'
 import { is } from '@electron-toolkit/utils'
-import { API_BASE_URL } from './config'
+import { API_BASE_URL, API_FALLBACK_URL } from './config'
 import { initDatabase, openUserDatabase, closeDatabase, getCurrentUser, flushSave } from './database'
 import { registerPositionHandlers } from './database/positions'
 import { registerPriceHandlers } from './database/prices'
@@ -398,12 +398,12 @@ app.whenReady().then(async () => {
     return getIndexHistory(code, limit)
   })
 
-  // 登录验证（主进程发起请求，绕过 CORS）
-  ipcMain.handle('auth:login', async (_event, username: string, password: string) => {
-    const result: { ok: boolean; status: number; data: any; error?: string } = await new Promise((resolve) => {
+  // 向指定鉴权服务发起登录请求（主进程发起请求，绕过 CORS）
+  const postLogin = (baseUrl: string, username: string, password: string) =>
+    new Promise<{ ok: boolean; status: number; data: any; error?: string; dbError?: string }>((resolve) => {
       const request = net.request({
         method: 'POST',
-        url: `${API_BASE_URL}/api/v1/auth/login/`
+        url: `${baseUrl}/api/v1/auth/login/`
       })
       request.setHeader('Content-Type', 'application/json')
 
@@ -425,6 +425,14 @@ app.whenReady().then(async () => {
       request.write(JSON.stringify({ username, password }))
       request.end()
     })
+
+  // 登录验证：先试主服务地址，网络层失败（服务不可达）时自动切换备用地址
+  ipcMain.handle('auth:login', async (_event, username: string, password: string) => {
+    let result = await postLogin(API_BASE_URL, username, password)
+    if (result.status === 0 && API_FALLBACK_URL && API_FALLBACK_URL !== API_BASE_URL) {
+      console.warn(`主鉴权服务不可达（${result.error}），切换备用地址 ${API_FALLBACK_URL}`)
+      result = await postLogin(API_FALLBACK_URL, username, password)
+    }
 
     // 登录成功后切换到该用户的独立数据库，并补足行情历史
     if (result.ok) {
@@ -457,20 +465,27 @@ app.whenReady().then(async () => {
     return true
   })
 
-  // 服务健康检查
+  // 服务健康检查：主、备鉴权服务任一可达即视为就绪
   ipcMain.handle('auth:ping', async () => {
-    return new Promise((resolve) => {
-      const request = net.request({
-        method: 'GET',
-        url: `${API_BASE_URL}/api/v1/auth/login/`
+    const pingOnce = (baseUrl: string) =>
+      new Promise<boolean>((resolve) => {
+        const request = net.request({
+          method: 'GET',
+          url: `${baseUrl}/api/v1/auth/login/`
+        })
+        request.on('response', (response) => {
+          response.on('data', () => {})
+          response.on('end', () => resolve(true))
+        })
+        request.on('error', () => resolve(false))
+        request.end()
       })
-      request.on('response', (response) => {
-        response.on('data', () => {})
-        response.on('end', () => resolve(true))
-      })
-      request.on('error', () => resolve(false))
-      request.end()
-    })
+
+    if (await pingOnce(API_BASE_URL)) return true
+    if (API_FALLBACK_URL && API_FALLBACK_URL !== API_BASE_URL) {
+      return pingOnce(API_FALLBACK_URL)
+    }
+    return false
   })
 
   // K 线（蜡烛图）数据
