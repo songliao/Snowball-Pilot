@@ -11,9 +11,6 @@ export interface PositionData {
   structure_type?: string // 'snowball' 雪球 | 'phoenix' 凤凰
   // 通用簿记
   contract_no?: string // 合约编号
-  booking_account?: string // 簿记账户（对冲 / 自营 等，自由文本）
-  trade_direction?: string // 交易方向（sell 卖出 / buy 买入）
-  sales_department?: string // 销售部门
   // 起息日（雪球/凤凰共用）
   trade_start_date?: string
   // 敲出参数（序列以 JSON 字符串存储）

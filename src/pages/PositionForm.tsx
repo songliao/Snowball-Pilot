@@ -213,9 +213,6 @@ export default function PositionForm({ readOnly = false, bare = false }: { readO
         const v = {
           product_name: values.product_name,
           broker: values.broker,
-          booking_account: values.booking_account || '',
-          trade_direction: values.trade_direction || '',
-          sales_department: values.sales_department || '',
           underlying_code: values.underlying_code,
           notional: Number(values.notional),
           initial_price: Number(values.initial_price || 0),
@@ -272,9 +269,6 @@ export default function PositionForm({ readOnly = false, bare = false }: { readO
         const v = {
           product_name: values.product_name,
           broker: values.broker,
-          booking_account: values.booking_account || '',
-          trade_direction: values.trade_direction || '',
-          sales_department: values.sales_department || '',
           underlying_code: values.underlying_code,
           notional: Number(values.notional),
           initial_price: Number(values.initial_price || 0),
@@ -421,24 +415,6 @@ export default function PositionForm({ readOnly = false, bare = false }: { readO
             <Col xs={24} sm={12} md={8}>
               <Form.Item label="起息价格" name="initial_price" rules={[{ required: true, message: '请输入起息价格' }]}>
                 <InputNumber style={{ width: '100%' }} min={0} step={0.01} addonAfter="点" />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={12} md={8}>
-              <Form.Item label="交易方向" name="trade_direction" tooltip="卖出 = 机构向对手方卖出期权结构；买入 = 向对手方买入">
-                <Select placeholder="选择交易方向" allowClear options={[
-                  { value: 'sell', label: '卖出' },
-                  { value: 'buy', label: '买入' }
-                ]} />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={12} md={8}>
-              <Form.Item label="簿记账户" name="booking_account">
-                <Input placeholder="如：对冲 / 自营" />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={12} md={8}>
-              <Form.Item label="销售部门" name="sales_department">
-                <Input placeholder="如：创新金融业务总部" />
               </Form.Item>
             </Col>
           </Row>

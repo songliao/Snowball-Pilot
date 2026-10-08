@@ -4,9 +4,6 @@ export const COMMON_COLS = [
   'product_name',
   'broker',
   'contract_no',
-  'booking_account',   // 簿记账户（对冲 / 自营 等，自由文本）
-  'trade_direction',   // 交易方向（sell 卖出 / buy 买入）
-  'sales_department',  // 销售部门
   'trade_start_date', // 起息日（雪球/凤凰共用）
   'underlying_code',
   'notional',
@@ -73,12 +70,6 @@ export function colValue(col: string, d: Record<string, unknown>): unknown {
       return (d.broker as string) || ''
     case 'contract_no':
       return (d.contract_no as string) || ''
-    case 'booking_account':
-      return (d.booking_account as string) || ''
-    case 'trade_direction':
-      return (d.trade_direction as string) || ''
-    case 'sales_department':
-      return (d.sales_department as string) || ''
     case 'underlying_code':
       return (d.underlying_code as string) || ''
     case 'notional':

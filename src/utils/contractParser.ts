@@ -7,9 +7,6 @@ export interface ParsedContract {
   product_name?: string
   contract_no?: string
   broker?: string
-  booking_account?: string // 簿记账户（对冲 / 自营 等，自由文本）
-  trade_direction?: string // 交易方向（sell 卖出 / buy 买入）
-  sales_department?: string // 销售部门
   underlying_code?: string
   notional?: number
   trade_start_date?: string // YYYY-MM-DD
@@ -55,9 +52,6 @@ const SIMPLE_FIELDS: Record<string, { field: keyof ParsedContract; handle?: Valu
   交易编号: { field: 'contract_no', handle: (v) => v.trim() },
   结构类型: { field: 'structureType', handle: (v) => deriveStructureType(v) },
   交易对手方: { field: 'broker', handle: (v) => v.trim() },
-  簿记账户: { field: 'booking_account', handle: (v) => v.trim() },
-  交易方向: { field: 'trade_direction', handle: (v) => mapTradeDirection(v) },
-  销售部门: { field: 'sales_department', handle: (v) => v.trim() },
   名义本金: { field: 'notional', handle: (v) => toNumber(v) },
   交易日期: { field: 'trade_start_date', handle: (v) => toDateStr(v) },
   期初价格: { field: 'initial_price', handle: (v) => toNumber(v) },
@@ -126,13 +120,6 @@ function deriveStructureType(raw: string): ParsedContract['structureType'] {
   if (v.includes('凤凰') || v.includes('DCN')) return 'phoenix'
   if (v.includes('气囊')) return 'airbag'
   return 'snowball' // 雪球 / 早利雪球 / 降敲早利雪球 / 平敲雪球 等
-}
-
-function mapTradeDirection(raw: string): string {
-  const v = raw.trim()
-  if (v.includes('卖') || /sell/i.test(v)) return 'sell'
-  if (v.includes('买') || /buy/i.test(v)) return 'buy'
-  return v
 }
 
 function mapKnockInObservation(raw: string): string {
