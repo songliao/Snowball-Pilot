@@ -399,8 +399,9 @@ app.whenReady().then(async () => {
   })
 
   // 向指定鉴权服务发起登录请求（主进程发起请求，绕过 CORS）
+  type LoginResult = { ok: boolean; status: number; data: any; error?: string; dbError?: string; url?: string }
   const postLogin = (baseUrl: string, username: string, password: string) =>
-    new Promise<{ ok: boolean; status: number; data: any; error?: string; dbError?: string }>((resolve) => {
+    new Promise<LoginResult>((resolve) => {
       const request = net.request({
         method: 'POST',
         url: `${baseUrl}/api/v1/auth/login/`
@@ -413,25 +414,52 @@ app.whenReady().then(async () => {
         response.on('end', () => {
           try {
             const data = JSON.parse(body)
-            resolve({ ok: response.statusCode === 200, status: response.statusCode, data })
+            resolve({ ok: response.statusCode === 200, status: response.statusCode, data, url: baseUrl })
           } catch {
-            resolve({ ok: false, status: response.statusCode, data: null })
+            resolve({ ok: false, status: response.statusCode, data: null, url: baseUrl })
           }
         })
       })
       request.on('error', (err) => {
-        resolve({ ok: false, status: 0, data: null, error: err.message })
+        resolve({ ok: false, status: 0, data: null, error: err.message, url: baseUrl })
       })
       request.write(JSON.stringify({ username, password }))
       request.end()
     })
 
-  // 登录验证：先试主服务地址，网络层失败（服务不可达）时自动切换备用地址
+  // 主/备鉴权地址：登录与心跳同时向两个地址并发请求，任一有效响应即采用。
+  // （ok 或 4xx 立即采纳；5xx/网络失败则等另一路结果，全部失败时报主地址错误）
+  const authEndpoints = [API_BASE_URL, API_FALLBACK_URL].filter(
+    (url, i, arr) => url && arr.indexOf(url) === i
+  )
+
+  // 并发发起多路登录，返回「最先可用的结果」：
+  // - 任一路返回 ok → 立即采用
+  // - 任一路返回 4xx（密码错误等确定性结果）→ 立即采用，不等另一路
+  // - 其余情况等所有路返回后择优（有 HTTP 响应的优先于网络失败）
+  const firstLoginResult = async (requests: Promise<LoginResult>[]): Promise<LoginResult> => {
+    if (requests.length === 1) return requests[0]
+    return new Promise((resolve) => {
+      let pending = requests.length
+      let best: LoginResult | null = null
+      requests.forEach((p) =>
+        p.then((r) => {
+          pending--
+          if (r.ok) return resolve(r)
+          // 全部失败时择优保留：有 HTTP 响应的优先于网络失败，主地址优先于备用
+          best = !best || (best.status === 0 && r.status > 0) ? r : best
+          if (r.status >= 400 && r.status < 500) return resolve(r)
+          if (pending === 0) resolve(best!)
+        })
+      )
+    })
+  }
+
+  // 登录验证：同时向主、备鉴权服务发起请求，先到先得
   ipcMain.handle('auth:login', async (_event, username: string, password: string) => {
-    let result = await postLogin(API_BASE_URL, username, password)
-    if (result.status === 0 && API_FALLBACK_URL && API_FALLBACK_URL !== API_BASE_URL) {
-      console.warn(`主鉴权服务不可达（${result.error}），切换备用地址 ${API_FALLBACK_URL}`)
-      result = await postLogin(API_FALLBACK_URL, username, password)
+    let result = await firstLoginResult(authEndpoints.map((url) => postLogin(url, username, password)))
+    if (authEndpoints.length > 1 && result.url && result.url !== authEndpoints[0]) {
+      console.warn(`主鉴权服务未返回有效响应，本次登录由备用地址 ${result.url} 完成`)
     }
 
     // 登录成功后切换到该用户的独立数据库，并补足行情历史
@@ -465,27 +493,31 @@ app.whenReady().then(async () => {
     return true
   })
 
-  // 服务健康检查：主、备鉴权服务任一可达即视为就绪
+  // 服务健康检查：主、备鉴权服务并发探测，任一可达即视为就绪
   ipcMain.handle('auth:ping', async () => {
     const pingOnce = (baseUrl: string) =>
       new Promise<boolean>((resolve) => {
+        const timer = setTimeout(() => resolve(false), 5000)
         const request = net.request({
           method: 'GET',
           url: `${baseUrl}/api/v1/auth/login/`
         })
         request.on('response', (response) => {
           response.on('data', () => {})
-          response.on('end', () => resolve(true))
+          response.on('end', () => {
+            clearTimeout(timer)
+            resolve(true)
+          })
         })
-        request.on('error', () => resolve(false))
+        request.on('error', () => {
+          clearTimeout(timer)
+          resolve(false)
+        })
         request.end()
       })
 
-    if (await pingOnce(API_BASE_URL)) return true
-    if (API_FALLBACK_URL && API_FALLBACK_URL !== API_BASE_URL) {
-      return pingOnce(API_FALLBACK_URL)
-    }
-    return false
+    const results = await Promise.all(authEndpoints.map((url) => pingOnce(url)))
+    return results.some(Boolean)
   })
 
   // K 线（蜡烛图）数据
