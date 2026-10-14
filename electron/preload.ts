@@ -107,7 +107,11 @@ const api = {
     delete: (id: number, structureType: string): Promise<boolean> =>
       ipcRenderer.invoke('positions:delete', id, structureType),
     updateStatus: (id: number, status: string, structureType: string, isKi?: boolean, knockInDate?: string, terminationDate?: string, payoff?: number): Promise<boolean> =>
-      ipcRenderer.invoke('positions:update-status', id, status, structureType, isKi, knockInDate, terminationDate, payoff)
+      ipcRenderer.invoke('positions:update-status', id, status, structureType, isKi, knockInDate, terminationDate, payoff),
+    exportCsv: (): Promise<{ ok: boolean; canceled?: boolean; path?: string; count?: number; error?: string }> =>
+      ipcRenderer.invoke('positions:export-csv'),
+    importCsv: (): Promise<{ ok: boolean; canceled?: boolean; imported?: number; failed?: number; error?: string }> =>
+      ipcRenderer.invoke('positions:import-csv')
   },
 
   // 价格操作

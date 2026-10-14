@@ -1,4 +1,5 @@
-import { ipcMain } from 'electron'
+import { ipcMain, dialog } from 'electron'
+import { readFileSync, writeFileSync } from 'fs'
 import { queryAll, queryOne, execute, getLastInsertId } from './index'
 import {
   COMMON_COLS,
@@ -25,15 +26,184 @@ const PHOENIX_EXTRA_SELECT_PHOENIX = PHOENIX_EXTRA.join(', ')
 const EXTRA_SELECT_SNOW = `${SNOWBALL_EXTRA_SELECT_SNOW}, ${PHOENIX_EXTRA_SELECT_SNOW}`
 const EXTRA_SELECT_PHOENIX = `${SNOWBALL_EXTRA_SELECT_PHOENIX}, ${PHOENIX_EXTRA_SELECT_PHOENIX}`
 
+const ALL_POSITIONS_SQL = `SELECT id, ${COMMON_SELECT}, ${EXTRA_SELECT_SNOW}, created_at, 'snowball' as structure_type FROM snowball_positions
+   UNION ALL
+   SELECT id, ${COMMON_SELECT}, ${EXTRA_SELECT_PHOENIX}, created_at, 'phoenix' as structure_type FROM phoenix_positions
+   ORDER BY created_at DESC`
+
+// ——— CSV 导出 / 导入 ———
+
+// CSV 导出列：结构类型 + 全部数据列（两表专属列并存，另一类型留空）
+const CSV_COLUMNS = ['structure_type', ...COMMON_COLS, ...SNOWBALL_EXTRA, ...PHOENIX_EXTRA]
+
+// 导入时需要转为数值的列（其余字符串列原样写入，空值交给 colValue 兜底）
+const NUMERIC_COLS = new Set([
+  'notional',
+  'initial_price',
+  'knock_in_barrier',
+  'knock_in_strike',
+  'margin_ratio',
+  'knock_in_participation',
+  'max_loss_pct',
+  'rebate_annual_pct',
+  'rebate_absolute_back_pct',
+  'rebate_absolute_front_pct',
+  'accrual_settle_tplus',
+  'abs_fee_pct',
+  'annual_fee_pct',
+  'income_dividend_pct',
+  'termination_payoff',
+  'knock_out_enhance_participation',
+  'maturity_coupon',
+  'coupon_barrier',
+  'coupon_rate'
+])
+
+function csvEscape(value: unknown): string {
+  const s = value == null ? '' : String(value)
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+}
+
+// 最小 RFC4180 解析器：支持引号包裹、双引号转义、CRLF
+function parseCsv(text: string): string[][] {
+  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1)
+  const rows: string[][] = []
+  let row: string[] = []
+  let field = ''
+  let inQuotes = false
+  let i = 0
+  while (i < text.length) {
+    const ch = text[i]
+    if (inQuotes) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') {
+          field += '"'
+          i += 2
+          continue
+        }
+        inQuotes = false
+        i++
+        continue
+      }
+      field += ch
+      i++
+      continue
+    }
+    if (ch === '"') {
+      inQuotes = true
+      i++
+      continue
+    }
+    if (ch === ',') {
+      row.push(field)
+      field = ''
+      i++
+      continue
+    }
+    if (ch === '\r') {
+      i++
+      continue
+    }
+    if (ch === '\n') {
+      row.push(field)
+      rows.push(row)
+      row = []
+      field = ''
+      i++
+      continue
+    }
+    field += ch
+    i++
+  }
+  if (field !== '' || row.length) {
+    row.push(field)
+    rows.push(row)
+  }
+  // 过滤完全空白的行
+  return rows.filter((r) => r.some((c) => c.trim() !== ''))
+}
+
 export function registerPositionHandlers(): void {
   // 列表：两张表 UNION，并带上 structure_type 字面量
   ipcMain.handle('positions:get-all', () => {
-    return queryAll(
-      `SELECT id, ${COMMON_SELECT}, ${EXTRA_SELECT_SNOW}, created_at, 'snowball' as structure_type FROM snowball_positions
-       UNION ALL
-       SELECT id, ${COMMON_SELECT}, ${EXTRA_SELECT_PHOENIX}, created_at, 'phoenix' as structure_type FROM phoenix_positions
-       ORDER BY created_at DESC`
-    )
+    return queryAll(ALL_POSITIONS_SQL)
+  })
+
+  // 导出全部持仓为 CSV：弹出保存对话框，带 BOM 便于 Excel 直接打开
+  ipcMain.handle('positions:export-csv', async () => {
+    const now = new Date()
+    const pad = (n: number): string => String(n).padStart(2, '0')
+    const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`
+    const dialogResult = await dialog.showSaveDialog({
+      title: '导出持仓',
+      defaultPath: `持仓导出_${stamp}.csv`,
+      filters: [{ name: 'CSV', extensions: ['csv'] }]
+    })
+    if (dialogResult.canceled || !dialogResult.filePath) return { ok: false, canceled: true }
+
+    const rows = queryAll<Record<string, unknown>>(ALL_POSITIONS_SQL)
+    const lines = [CSV_COLUMNS.join(',')]
+    for (const row of rows) {
+      lines.push(CSV_COLUMNS.map((c) => csvEscape(row[c])).join(','))
+    }
+    try {
+      // \uFEFF BOM：Excel 识别 UTF-8 中文
+      writeFileSync(dialogResult.filePath, '\uFEFF' + lines.join('\r\n') + '\r\n', 'utf-8')
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    }
+    return { ok: true, path: dialogResult.filePath, count: rows.length }
+  })
+
+  // 从 CSV 批量导入持仓：按 structure_type 分表写入，逐行容错
+  ipcMain.handle('positions:import-csv', async () => {
+    const dialogResult = await dialog.showOpenDialog({
+      title: '导入持仓',
+      filters: [{ name: 'CSV', extensions: ['csv'] }],
+      properties: ['openFile']
+    })
+    if (dialogResult.canceled || !dialogResult.filePaths.length) return { ok: false, canceled: true }
+
+    let rows: string[][]
+    try {
+      rows = parseCsv(readFileSync(dialogResult.filePaths[0], 'utf-8'))
+    } catch (e) {
+      return { ok: false, error: `读取文件失败：${e instanceof Error ? e.message : String(e)}` }
+    }
+    if (rows.length < 2) return { ok: false, error: '文件为空或缺少数据行' }
+
+    const header = rows[0].map((h) => h.trim())
+    let imported = 0
+    let failed = 0
+    for (let r = 1; r < rows.length; r++) {
+      const rec: Record<string, string> = {}
+      header.forEach((h, i) => {
+        rec[h] = rows[r][i] ?? ''
+      })
+      try {
+        const structureType = (rec.structure_type || '').trim()
+        if (structureType !== 'snowball' && structureType !== 'phoenix') throw new Error('无效的 structure_type')
+        const cols = colsForType(structureType)
+        const data: Record<string, unknown> = { structure_type: structureType }
+        for (const col of cols) {
+          const raw = (rec[col] ?? '').trim()
+          if (raw === '') continue
+          data[col] = NUMERIC_COLS.has(col) ? Number(raw) : raw
+        }
+        data.is_ki = (rec.is_ki ?? '').trim() === '1'
+        const values = cols.map((c) => colValue(c, data))
+        execute(
+          `INSERT INTO ${tableForType(structureType)} (${cols.join(', ')}, created_at, updated_at)
+           VALUES (${cols.map(() => '?').join(', ')}, datetime('now','localtime'), datetime('now','localtime'))`,
+          values
+        )
+        imported++
+      } catch {
+        failed++
+      }
+    }
+    if (imported === 0 && failed > 0) return { ok: false, error: `全部 ${failed} 行导入失败，请检查文件是否为本软件导出的持仓 CSV` }
+    return { ok: true, imported, failed }
   })
 
   ipcMain.handle('positions:get-by-id', (_event, id: number, structureType?: string) => {

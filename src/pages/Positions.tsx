@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Card, Table, Button, Popconfirm, Space, Tag, message, Segmented } from 'antd'
 import type { TableProps } from 'antd'
-import { EyeOutlined, DeleteOutlined } from '@ant-design/icons'
+import { EyeOutlined, DeleteOutlined, DownloadOutlined, UploadOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { usePositionStore } from '../stores/positionStore'
 import { useMarketStore } from '../stores/marketStore'
@@ -84,6 +84,41 @@ export default function Positions() {
       )
     } finally {
       setDeletingId(null)
+    }
+  }
+
+  const [exporting, setExporting] = useState(false)
+  const [importing, setImporting] = useState(false)
+
+  const handleExport = async () => {
+    setExporting(true)
+    try {
+      const r = await window.api.positions.exportCsv()
+      if (r.canceled) return
+      if (r.ok) message.success(`已导出 ${r.count} 条持仓：${r.path}`)
+      else message.error(`导出失败：${r.error || '未知错误'}`)
+    } catch (err) {
+      message.error(`导出失败：${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  const handleImport = async () => {
+    setImporting(true)
+    try {
+      const r = await window.api.positions.importCsv()
+      if (r.canceled) return
+      if (r.ok) {
+        message.success(`成功导入 ${r.imported} 条持仓${r.failed ? `，${r.failed} 条失败` : ''}`)
+        fetchAll()
+      } else {
+        message.error(`导入失败：${r.error || '未知错误'}`)
+      }
+    } catch (err) {
+      message.error(`导入失败：${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setImporting(false)
     }
   }
 
@@ -331,14 +366,22 @@ export default function Positions() {
     <div>
       <div className="page-header" style={{ marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <h2 style={{ margin: 0 }}>持仓管理</h2>
-        <Segmented
-          value={showAll ? 'all' : 'active'}
-          onChange={(v) => setShowAll(v === 'all')}
-          options={[
-            { label: '存续合约', value: 'active' },
-            { label: '全部合约', value: 'all' }
-          ]}
-        />
+        <Space size={8}>
+          <Button icon={<DownloadOutlined />} loading={exporting} onClick={handleExport}>
+            导出
+          </Button>
+          <Button icon={<UploadOutlined />} loading={importing} onClick={handleImport}>
+            导入
+          </Button>
+          <Segmented
+            value={showAll ? 'all' : 'active'}
+            onChange={(v) => setShowAll(v === 'all')}
+            options={[
+              { label: '存续合约', value: 'active' },
+              { label: '全部合约', value: 'all' }
+            ]}
+          />
+        </Space>
       </div>
 
       <Card
