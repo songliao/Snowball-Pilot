@@ -56,7 +56,7 @@ App：OTC Pilot ｜ Apple ID `6823939773` ｜ Bundle ID `com.snowball.pilot.ios`
 
 ## Build 4 → Build 5 改动
 
-⚠️ **本节内容不是从版本历史得出的。** `ios/` 目录在 git 里没有任何被跟踪文件（`git ls-files ios/` 返回 0），所以无法 diff。下面的条目是用「文件修改时间晚于 Build 4 上传时刻（2026-10-17 22:13）」倒推出来的候选改动集，**可能混入了 Build 4 之前就已存在、只是后来被顺手碰过的代码。发布前请人工核对。**
+⚠️ **本节内容不是从版本历史得出的。** 整理这份说明时 `ios/` 目录还没有被 git 跟踪，无法 diff，下面的条目是用「文件修改时间晚于 Build 4 上传时刻（2026-10-17 22:13）」倒推出来的候选改动集，**可能混入了 Build 4 之前就已存在、只是后来被顺手碰过的代码**。自本次 ios/ 入库之后，后续版本请改用 git 历史，不再用时间戳倒推。
 
 改动集中在**主线程卡顿/卡死**这一条线上：
 
@@ -116,5 +116,4 @@ App：OTC Pilot ｜ Apple ID `6823939773` ｜ Bundle ID `com.snowball.pilot.ios`
 
 - iOS `MARKETING_VERSION` 仍是 1.0.0，桌面端已到 1.0.21；正式发布前建议对齐。
 - App Store 版本 1.0「Prepare for Submission」的 Description / Keywords 仍为空，且「Sign-In required」仍勾选着 —— 提 App Store 审核前必须改。
-- `ios/` 整个目录没有被 git 跟踪，改动无历史可查。这是本次 changelog 只能靠时间戳倒推的根本原因。
 - 隐私政策：https://otc-pilot-privacy-n53w1myck7x.qoder.zone/
