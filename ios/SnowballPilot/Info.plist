@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- 2026-10-17 更名：桌面屏显示名 OTC Pilot（Bundle ID 保持 com.snowball.pilot.ios 不变，老用户数据不受影响） -->
+	<key>CFBundleDisplayName</key>
+	<string>OTC Pilot</string>
+	<key>CFBundleName</key>
+	<string>OTC Pilot</string>
+	<!-- 免登录后仅剩腾讯行情一个网络依赖，且全部走 HTTPS，
+	     ATS 无需任何例外（2026-10-17 移除原 NSAllowsArbitraryLoads）。 -->
+	<!-- 仅使用标准 HTTPS（含系统 TLS），属于豁免加密，免去每次提交的出口合规问询 -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<!-- 调试深链（仅 DEBUG 使用）：snowballpilot://tab/0..3 切换标签，便于模拟器自动走查 -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.snowball.pilot.ios</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>snowballpilot</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>
