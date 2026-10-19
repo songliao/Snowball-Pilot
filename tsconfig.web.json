@@ -15,5 +15,7 @@
       "@/*": ["src/*"]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"]
+  // src/attic：归档代码（如免登录前的 Login 页），不参与编译
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["src/attic/**"]
 }

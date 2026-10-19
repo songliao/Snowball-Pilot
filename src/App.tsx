@@ -1,13 +1,12 @@
 import { useEffect, useRef } from 'react'
 import { HashRouter, Routes, Route } from 'react-router-dom'
-import { ConfigProvider, theme as antTheme, message } from 'antd'
+import { ConfigProvider, theme as antTheme } from 'antd'
 import zhCN from 'antd/locale/zh_CN'
 import { useThemeStore } from './stores/themeStore'
-import { useAuthStore, SESSION_TTL } from './stores/authStore'
+import { useAuthStore } from './stores/authStore'
 import AppLayout from './components/Layout'
 import UpdateNotifier from './components/UpdateNotifier'
 import HotUpdateNotifier from './components/HotUpdateNotifier'
-import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Positions from './pages/Positions'
 import PositionForm from './pages/PositionForm'
@@ -22,45 +21,22 @@ import ContractCheck from './pages/ContractCheck'
 export default function App() {
   const mode = useThemeStore((s) => s.mode)
   const isDark = mode === 'dark'
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
   const initializing = useAuthStore((s) => s.initializing)
-  const loginTime = useAuthStore((s) => s.loginTime)
-  const logout = useAuthStore((s) => s.logout)
   const dbReady = useAuthStore((s) => s.dbReady)
+  const dbError = useAuthStore((s) => s.error)
   const resume = useAuthStore((s) => s.resume)
   const init = useAuthStore((s) => s.init)
 
-  // 启动时：从加密存储异步恢复登录态，解密完毕前显示加载占位
+  // 免登录直启：启动时确定本机用户名，随后打开本机数据库
   useEffect(() => {
     init()
   }, [init])
 
-  // 恢复登录态后，若本地已有凭据但数据库尚未打开，
-  // 需先恢复对应用户的独立数据库，再渲染主界面，避免访问空库报错。
   useEffect(() => {
-    if (isAuthenticated && !dbReady && !initializing) {
+    if (!dbReady && !initializing && !dbError) {
       resume()
     }
-  }, [isAuthenticated, dbReady, initializing, resume])
-
-  // 登录有效期为 30 天：本地记录登录时间，后台定期检查是否已过期；
-  // 超过有效期则自动登出，要求重新登录（无需请求服务端校验）。
-  useEffect(() => {
-    if (!isAuthenticated || !loginTime) return
-    let cancelled = false
-    const checkExpiry = () => {
-      if (cancelled) return
-      if (Date.now() - loginTime > SESSION_TTL) {
-        logout()
-        message.warning('登录已过期（有效期 30 天），请重新登录')
-      }
-    }
-    const timer = setInterval(checkExpiry, 60 * 1000)
-    return () => {
-      cancelled = true
-      clearInterval(timer)
-    }
-  }, [isAuthenticated, loginTime, logout])
+  }, [dbReady, initializing, dbError, resume])
 
   useEffect(() => {
     const bg = isDark ? '#09090b' : '#f5f5f4'
@@ -237,27 +213,24 @@ export default function App() {
       }}
     >
       <div data-theme={mode} style={{ minHeight: '100vh', background: isDark ? '#09090b' : '#f5f5f4' }}>
-        {/* 全局更新提示：登录页与主界面均可见 */}
+        {/* 全局更新提示：启动加载与主界面均可见 */}
         <UpdateNotifier />
         <HotUpdateNotifier />
-        {initializing ? (
-          // 启动时正在从 OS 加密存储恢复凭据，短暂占位
+        {dbError ? (
           <div
             style={{
               minHeight: '100vh',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: isDark ? 'rgba(244,244,245,0.5)' : 'rgba(30,30,34,0.45)',
+              color: '#ef4444',
               fontSize: 14
             }}
           >
-            正在加载数据…
+            {dbError}
           </div>
-        ) : !isAuthenticated ? (
-          <Login />
         ) : !dbReady ? (
-          // 数据库尚未就绪（恢复会话中）：短暂占位，避免主界面访问空库
+          // 数据库尚未就绪（确定用户名 + 打开本机库中）：短暂占位，避免主界面访问空库
           <div
             style={{
               minHeight: '100vh',

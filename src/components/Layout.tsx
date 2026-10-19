@@ -5,7 +5,6 @@ import {
   CompassOutlined,
   WalletOutlined,
   SettingOutlined,
-  LogoutOutlined,
   PlusOutlined,
   FundOutlined,
   CalendarOutlined,
@@ -306,7 +305,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                 </span>
                 <div style={{ overflow: 'hidden' }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: isDark ? 'rgba(244,244,245,0.92)' : 'rgba(30,30,34,0.85)', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {username || '未登录'}
+                    {username && username !== 'local' ? username : '本机数据'}
                   </div>
                 </div>
               </div>
@@ -435,25 +434,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                 </div>
               )}
 
-              <div
-                onClick={() => { setSettingsOpen(false); useAuthStore.getState().logout() }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '8px 4px',
-                  cursor: 'pointer',
-                  borderRadius: 6,
-                  fontSize: 13,
-                  color: '#ef4444',
-                  transition: 'background 0.2s'
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(239,68,68,0.08)')}
-                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-              >
-                <LogoutOutlined />
-                <span>退出登录</span>
-              </div>
             </div>
           )}
         </div>

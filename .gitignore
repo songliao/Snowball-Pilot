@@ -13,3 +13,9 @@ ios/.derived/
 xcuserdata/
 *.xcuserstate
 DerivedData/
+# 编辑器本地会话数据
+.zcode/
+# 本地数据库（运行时生成，含用户合约数据）
+*.db
+*.db-shm
+*.db-wal
