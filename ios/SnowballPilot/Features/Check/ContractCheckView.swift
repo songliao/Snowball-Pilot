@@ -7,7 +7,7 @@ struct ContractCheckView: View {
     struct Issue: Identifiable {
         let id: String
         let kind: Kind
-        let position: Position
+        var position: Position
         let observationDate: String
         let barrierPrice: Double
         let barrierLabel: String   // 已含百分比文案
@@ -26,6 +26,7 @@ struct ContractCheckView: View {
     @State private var running = false
     @State private var hasRun = false
     @State private var notesTarget: Issue?
+    @State private var detailTarget: Position?
     @State private var saveError: String?
 
     var body: some View {
@@ -63,7 +64,9 @@ struct ContractCheckView: View {
         }
         .navigationTitle("合约检查")
         .navigationBarTitleDisplayMode(.inline)
-        .navigationDestination(for: Position.self) { position in
+        // 详情页走 item 版导航：行内若放 NavigationLink，它会吞掉整行的点击，
+        // 导致同一行的「备注」按钮点不到、直接跳详情。
+        .navigationDestination(item: $detailTarget) { position in
             PositionDetailView(position: position)
         }
         .sheet(item: $notesTarget) { issue in
@@ -249,17 +252,26 @@ struct ContractCheckView: View {
                                 .font(.caption.monospacedDigit())
                                 .foregroundStyle(issue.kind == .missedKnockOut || issue.kind == .missedCoupon ? .green : .red)
                         }
-                        HStack {
-                            Spacer()
-                            NavigationLink(value: issue.position) {
-                                Text("查看")
+                        // 行内不再用 NavigationLink（会吞并整行点击），两个操作都用按钮，保证触控区
+                        HStack(spacing: 10) {
+                            Spacer(minLength: 0)
+                            Button {
+                                detailTarget = issue.position
+                            } label: {
+                                Label("查看合约", systemImage: "chevron.right")
+                                    .labelStyle(.titleAndIcon)
                             }
-                            .font(.caption)
-                            Button("备注") {
+                            .buttonStyle(.bordered)
+                            Button {
                                 notesTarget = issue
+                            } label: {
+                                Label("加备注", systemImage: "square.and.pencil")
                             }
-                            .font(.caption)
+                            .buttonStyle(.borderedProminent)
                         }
+                        .buttonStyle(.borderless)
+                        .font(.subheadline)
+                        .padding(.top, 2)
                     }
                     .padding(.vertical, 2)
                 }
@@ -306,6 +318,10 @@ struct ContractCheckView: View {
         updated.notes = newText
         do {
             _ = try services.savePosition(updated)
+            // 回写列表快照，否则再次点同一条的「加备注」仍预填旧内容
+            if let index = issues.firstIndex(where: { $0.id == issue.id }) {
+                issues[index].position = updated
+            }
         } catch {
             saveError = error.localizedDescription
         }
