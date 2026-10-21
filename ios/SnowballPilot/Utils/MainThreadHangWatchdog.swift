@@ -56,10 +56,15 @@ nonisolated enum MainThreadHangWatchdog {
         guard thread_suspend(mainThread) == KERN_SUCCESS else { return }
         defer { thread_resume(mainThread) }
 
-        var state = arm_thread_state64_t()
-        var count = mach_msg_type_number_t(MemoryLayout<arm_thread_state64_t>.size / MemoryLayout<natural_t>.size)
-        let kr = withUnsafeMutablePointer(to: &state) { st in
-            st.withMemoryRebound(to: natural_t.self, capacity: Int(count)) { p in
+        // 较新 SDK 不再向 Swift 导出 arm_thread_state64_t，这里按
+        // mach/arm/thread_status.h 的布局用裸缓冲取寄存器：x[29] + fp/lr/sp/pc…
+        let indexFP = 29
+        let indexPC = 32
+        let wordCount = 64 // 预留足够空间（实际 state 32～36 个字）
+        var words = [UInt64](repeating: 0, count: wordCount)
+        var count = mach_msg_type_number_t(wordCount * MemoryLayout<UInt64>.size / MemoryLayout<natural_t>.size)
+        let kr = words.withUnsafeMutableBufferPointer { buffer in
+            buffer.baseAddress!.withMemoryRebound(to: natural_t.self, capacity: Int(count)) { p in
                 thread_get_state(mainThread, ARM_THREAD_STATE64, p, &count)
             }
         }
@@ -71,8 +76,8 @@ nonisolated enum MainThreadHangWatchdog {
         // 去掉 PAC 签名位（arm64e 系统帧的 pc/lr 带签名）
         func strip(_ v: UInt64) -> UInt64 { v & 0x0000_007F_FFFF_FFFF }
         var lines: [String] = ["==== hang @ \(Date()) ===="]
-        var pc = Int(Int64(bitPattern: strip(state.__pc)))
-        var fp = Int(Int64(bitPattern: strip(state.__fp)))
+        var pc = Int(Int64(bitPattern: strip(words[indexPC])))
+        var fp = Int(Int64(bitPattern: strip(words[indexFP])))
         var steps = 0
         while fp != 0, steps < 128 {
             lines.append(symbolicate(pc))

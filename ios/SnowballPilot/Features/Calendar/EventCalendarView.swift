@@ -8,6 +8,12 @@ struct EventCalendarView: View {
     @State private var monthOffset = 0 // 相对当月的偏移
     @State private var selectedDate: Date?
 
+    /// 事件推导要遍历全部持仓并对每份日期序列做 JSON 解析，开销不小。
+    /// 原先是 computed property，42 个日期格各自调用一次 `eventsByDay`（进而全量重算），
+    /// 首次进日历页等于把整套推导重复几十轮，主线程直接卡住；这里改为缓存，只在持仓变化时重算。
+    @State private var calendarEvents: [CalendarEvent] = []
+    @State private var eventsByDay: [String: [CalendarEvent]] = [:]
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -23,6 +29,8 @@ struct EventCalendarView: View {
             .navigationDestination(for: Position.self) { position in
                 PositionDetailView(position: position)
             }
+            // 持仓变化（增删改 / 导入 / 了结）时重新推导，其余重绘走缓存
+            .task(id: services.positions) { rebuildEvents() }
         }
     }
 
@@ -50,7 +58,7 @@ struct EventCalendarView: View {
 
     private var today: Date { AppDate.startOfToday() }
 
-    private var calendarEvents: [CalendarEvent] {
+    private func rebuildEvents() {
         var events: [CalendarEvent] = []
         for position in services.positions {
             guard position.status != .knockedOut, position.status != .matured else { continue }
@@ -80,7 +88,8 @@ struct EventCalendarView: View {
                 ))
             }
         }
-        return events.sorted { $0.date < $1.date }
+        calendarEvents = events.sorted { $0.date < $1.date }
+        eventsByDay = Dictionary(grouping: calendarEvents) { AppDate.format($0.date) }
     }
 
     // MARK: - 月历
@@ -97,10 +106,6 @@ struct EventCalendarView: View {
         let leading = (weekday + 6) % 7 // 周一为 0
         let gridStart = calendar.date(byAdding: .day, value: -leading, to: firstOfMonth) ?? firstOfMonth
         return (0..<42).compactMap { calendar.date(byAdding: .day, value: $0, to: gridStart) }
-    }
-
-    private var eventsByDay: [String: [CalendarEvent]] {
-        Dictionary(grouping: calendarEvents) { AppDate.format($0.date) }
     }
 
     private var calendarCard: some View {
@@ -139,6 +144,8 @@ struct EventCalendarView: View {
             }
 
             let weekdayNames = ["一", "二", "三", "四", "五", "六", "日"]
+            let todayKey = AppDate.format(today)
+            let selectedKey = selectedDate.map { AppDate.format($0) }
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 6) {
                 ForEach(weekdayNames, id: \.self) { name in
                     Text(name)
@@ -146,7 +153,14 @@ struct EventCalendarView: View {
                         .foregroundStyle(.tertiary)
                 }
                 ForEach(monthCells, id: \.self) { cell in
-                    dayCell(cell)
+                    dayCell(
+                        cell,
+                        day: Self.calendar.component(.day, from: cell),
+                        inMonth: Self.calendar.isDate(cell, equalTo: displayMonth, toGranularity: .month),
+                        events: eventsByDay[AppDate.format(cell)] ?? [],
+                        isToday: AppDate.format(cell) == todayKey,
+                        isSelected: AppDate.format(cell) == selectedKey
+                    )
                 }
             }
         }
@@ -159,20 +173,23 @@ struct EventCalendarView: View {
         return "\(components.year ?? 0) 年 \(components.month ?? 0) 月"
     }
 
-    private func dayCell(_ date: Date) -> some View {
-        let key = AppDate.format(date)
-        let dayEvents = eventsByDay[key] ?? []
-        let isToday = key == AppDate.format(today)
-        let isSelected = selectedDate != nil && AppDate.format(selectedDate!) == key
-        let inMonth = Calendar.current.isDate(date, equalTo: displayMonth, toGranularity: .month)
+    private static let calendar = Calendar.current
 
+    private func dayCell(
+        _ date: Date,
+        day: Int,
+        inMonth: Bool,
+        events: [CalendarEvent],
+        isToday: Bool,
+        isSelected: Bool
+    ) -> some View {
         return Button {
             withAnimation(.snappy) {
                 selectedDate = isSelected ? nil : date
             }
         } label: {
             VStack(spacing: 3) {
-                Text("\(Calendar.current.component(.day, from: date))")
+                Text("\(day)")
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(dayTextColor(inMonth: inMonth, isToday: isToday, isSelected: isSelected))
                     .frame(width: 26, height: 26)
@@ -180,13 +197,13 @@ struct EventCalendarView: View {
                         Circle().fill(isSelected ? Color.accentColor : (isToday ? Color.accentColor.opacity(0.15) : .clear))
                     )
                 HStack(spacing: 2) {
-                    ForEach(dayEvents.prefix(3), id: \.id) { event in
+                    ForEach(events.prefix(3), id: \.id) { event in
                         Circle()
                             .fill(event.kind == .knockOut ? Color.green : Color.blue)
                             .frame(width: 4, height: 4)
                     }
-                    if dayEvents.count > 3 {
-                        Text("+\(dayEvents.count - 3)")
+                    if events.count > 3 {
+                        Text("+\(events.count - 3)")
                             .font(.system(size: 7))
                             .foregroundStyle(.tertiary)
                     }

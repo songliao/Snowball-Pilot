@@ -18,18 +18,23 @@ final class AppServices {
 
     private static let alertConfigKey = "alert-config"
 
-    var alertConfig: AlertEngine.Config {
-        get {
-            guard let data = UserDefaults.standard.data(forKey: Self.alertConfigKey),
-                  let config = try? JSONDecoder().decode(AlertEngine.Config.self, from: data)
-            else { return .defaults }
-            return config
-        }
-        set {
-            if let data = try? JSONEncoder().encode(newValue) {
-                UserDefaults.standard.set(data, forKey: Self.alertConfigKey)
-            }
-        }
+    /// 必须是存储属性：`@Observable` 只为**存储属性**注入读写追踪，
+    /// 之前写成每次从 UserDefaults 现取现算的 computed property，
+    /// Stepper 写入后不触发变更通知，界面数字就不跟随步进（值其实已落盘）。
+    var alertConfig: AlertEngine.Config = AppServices.loadAlertConfig() {
+        didSet { persistAlertConfig() }
+    }
+
+    private static func loadAlertConfig() -> AlertEngine.Config {
+        guard let data = UserDefaults.standard.data(forKey: alertConfigKey),
+              let config = try? JSONDecoder().decode(AlertEngine.Config.self, from: data)
+        else { return .defaults }
+        return config
+    }
+
+    private func persistAlertConfig() {
+        guard let data = try? JSONEncoder().encode(alertConfig) else { return }
+        UserDefaults.standard.set(data, forKey: Self.alertConfigKey)
     }
 
     // MARK: - 生命周期
