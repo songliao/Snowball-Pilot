@@ -46,15 +46,15 @@ struct PositionsView: View {
         /// 当前排序的顺序说明（菜单底部提示）。
         var hint: String {
             switch self {
-            case .default: "录入顺序"
-            case .notional: "由大到小"
-            case .startDate: "由早到晚"
-            case .event: "最近事件在前"
+        case .default: "录入顺序"
+        case .notional: "由大到小"
+        case .startDate: "由近到远"
+        case .event: "最近事件在前"
             }
         }
     }
 
-    @State private var sort: SortOption = .default
+    @State private var sort: SortOption = .startDate
 
     private var filtered: [Position] {
         let result = services.positions.filter { position in
@@ -83,8 +83,9 @@ struct PositionsView: View {
         case .notional:
             return positions.sorted { $0.notional > $1.notional }
         case .startDate:
+            // 起息时间由近到远（日期降序）；起息日缺失或无法解析的排最后
             return positions.sorted {
-                (AppDate.parse($0.tradeStartDate) ?? .distantFuture) < (AppDate.parse($1.tradeStartDate) ?? .distantFuture)
+                (AppDate.parse($0.tradeStartDate) ?? .distantPast) > (AppDate.parse($1.tradeStartDate) ?? .distantPast)
             }
         case .event:
             // 敲出与派息取其中最近的一个作为「下次事件」；无后续事件的排在最后
@@ -150,7 +151,7 @@ struct PositionsView: View {
                         } header: {
                             Text("排序")
                         } footer: {
-                            Text(sort == .default ? "名义本金由大到小 · 起息日期由早到晚 · 最近敲出/派息在前" : sort.hint)
+                            Text(sort == .default ? "名义本金由大到小 · 起息日期由近到远 · 最近敲出/派息在前" : sort.hint)
                         }
                         Section {
                             Button {
