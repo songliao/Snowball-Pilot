@@ -258,14 +258,13 @@ struct ContractCheckView: View {
                             Button {
                                 detailTarget = issue.position
                             } label: {
-                                Label("查看合约", systemImage: "chevron.right")
-                                    .labelStyle(.titleAndIcon)
+                                Label("查看合约", systemImage: "doc.text.magnifyingglass")
                             }
                             .buttonStyle(.bordered)
                             Button {
                                 notesTarget = issue
                             } label: {
-                                Label("加备注", systemImage: "square.and.pencil")
+                                Label("添加备注", systemImage: "note.text.badge.plus")
                             }
                             .buttonStyle(.borderedProminent)
                         }
