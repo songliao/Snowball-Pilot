@@ -5,7 +5,11 @@ struct RootView: View {
     @Environment(AppModel.self) private var appModel
 
     var body: some View {
-        if appModel.ready {
+        if ProcessInfo.processInfo.arguments.contains("-screen") {
+            NavigationStack { ContractCheckView() }
+                .environment(appModel.services)
+                .task { appModel.bootstrap() }
+        } else if appModel.ready {
             MainTabView()
         } else if let error = appModel.loadError {
             ContentUnavailableView("打开失败",

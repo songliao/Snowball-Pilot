@@ -82,6 +82,12 @@ struct ContractCheckView: View {
         } message: {
             Text(saveError ?? "")
         }
+        .task {
+            // 截图走查：`-autorun` 启动即自动执行一次检查
+            if !hasRun, ProcessInfo.processInfo.arguments.contains("-autorun") {
+                await run()
+            }
+        }
     }
 
     // MARK: - 检查逻辑（与桌面端一致）
@@ -252,24 +258,34 @@ struct ContractCheckView: View {
                                 .font(.caption.monospacedDigit())
                                 .foregroundStyle(issue.kind == .missedKnockOut || issue.kind == .missedCoupon ? .green : .red)
                         }
-                        // 行内不再用 NavigationLink（会吞并整行点击），两个操作都用按钮，保证触控区
+                        // 行内操作按钮用显式配色（不依赖 bordered/borderedProminent 的
+                        // 系统渲染行为），保证图标与文字在任何系统版本下都与底色有对比。
                         HStack(spacing: 10) {
                             Spacer(minLength: 0)
                             Button {
                                 detailTarget = issue.position
                             } label: {
                                 Label("查看合约", systemImage: "doc.text.magnifyingglass")
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundStyle(Color.accentColor)
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 8)
+                                    .background(Color.accentColor.opacity(0.12), in: Capsule())
                             }
-                            .buttonStyle(.bordered)
+                            .buttonStyle(.plain)
                             Button {
                                 notesTarget = issue
                             } label: {
                                 Label("添加备注", systemImage: "note.text.badge.plus")
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 8)
+                                    .background(Color.accentColor, in: Capsule())
                             }
-                            .buttonStyle(.borderedProminent)
+                            .buttonStyle(.plain)
                         }
                         .buttonStyle(.borderless)
-                        .font(.subheadline)
                         .padding(.top, 2)
                     }
                     .padding(.vertical, 2)

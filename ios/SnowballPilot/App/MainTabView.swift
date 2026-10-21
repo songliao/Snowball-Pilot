@@ -29,6 +29,8 @@ struct MainTabView: View {
                 }
             }
             .task {
+                // `-screen` 为截图走查专用：跳过预警轮询，避免首次触发通知权限弹窗挡住页面
+                guard !ProcessInfo.processInfo.arguments.contains("-screen") else { return }
                 // 预警本地通知：前台每 5 分钟检查（对应桌面端 5 分钟定时任务）。
                 // 通知权限在首次真正触发预警时才请求，避免启动即弹窗。
                 while !Task.isCancelled {
