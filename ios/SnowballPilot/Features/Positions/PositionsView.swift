@@ -346,7 +346,7 @@ struct PositionRow: View {
         .padding(.vertical, 2)
     }
 
-    /// 核心信息：上排现价 / 安全垫 + 右侧盈亏；下排下一敲出、派息（含剩余天数）。
+    /// 核心信息：上排现价 / 安全垫 + 右侧盈亏；下排下一敲出、派息（含到障碍价的距离）。
     @ViewBuilder
     private var metrics: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -366,14 +366,15 @@ struct PositionRow: View {
                 payoffText
             }
             if !isSettled {
+                // 没有未来观察日时也给个说明，避免「什么都看不到」误以为没显示
                 HStack(spacing: 10) {
-                    if let ko = nextKnockOutDate {
-                        Text(eventLabel("敲出", date: ko))
+                    if let ko = knockOutText {
+                        Text(ko)
                             .font(.caption.monospacedDigit())
                             .foregroundStyle(.green)
                     }
-                    if position.structureType == .phoenix, let cp = nextCouponDate {
-                        Text(eventLabel("派息", date: cp))
+                    if let cp = couponText {
+                        Text(cp)
                             .font(.caption.monospacedDigit())
                             .foregroundStyle(.blue)
                     }
@@ -407,11 +408,52 @@ struct PositionRow: View {
         Calc.nextFutureDate(from: position.couponDates, today: today)
     }
 
-    /// 「敲出 12-20·28天」形如：日期 + 到下一次观察日的剩余天数。
-    private func eventLabel(_ prefix: String, date: Date) -> String {
-        let days = AppDate.truncatedDayCount(from: today, to: date)
-        let countdown = days > 0 ? "\(days)天" : "今天"
-        return "\(prefix) \(shortDate(date))·\(countdown)"
+    private var knockOutText: String? {
+        if let date = nextKnockOutDate {
+            return eventLabel("敲出", date: date, barrier: nextKnockOutBarrier)
+        }
+        return Calc.stringArray(position.knockOutDates).isEmpty ? nil : "敲出 无后续观察日"
+    }
+
+    private var couponText: String? {
+        guard position.structureType == .phoenix else { return nil }
+        if let date = nextCouponDate {
+            return eventLabel("派息", date: date, barrier: couponBarrierPrice)
+        }
+        return Calc.stringArray(position.couponDates).isEmpty ? nil : "派息 无后续观察日"
+    }
+
+    /// 距离 = 障碍价 / 现价 − 1（与桌面端一致的百分比差距口径）：
+    /// 正值代表现价还差这么多才达标，≤0 代表现价已在障碍价之外。
+    private static func distancePercent(barrier: Double, price: Double) -> Double {
+        guard price > 0, barrier > 0 else { return 0 }
+        return barrier / price - 1
+    }
+
+    /// 下一敲出观察日对应的障碍价（按同一 index 取敲出障碍序列，缺则取最后一个）。
+    private var nextKnockOutBarrier: Double? {
+        guard let date = nextKnockOutDate else { return nil }
+        let dates = Calc.stringArray(position.knockOutDates)
+        guard let index = dates.firstIndex(where: { AppDate.parse($0) == date }) else { return nil }
+        let barriers = Calc.numberArray(position.knockOutBarriers)
+        guard let pct = index < barriers.count ? barriers[index] : barriers.last, pct > 0 else { return nil }
+        return position.initialPrice * pct / 100
+    }
+
+    /// 派息障碍价（couponBarrier 存的是比例小数）。
+    private var couponBarrierPrice: Double? {
+        position.couponBarrier > 0 ? position.initialPrice * position.couponBarrier : nil
+    }
+
+    /// 「敲出 12-20 · 还差 3.2%」形如：观察日 + 到障碍价的价格距离。
+    private func eventLabel(_ prefix: String, date: Date, barrier: Double?) -> String {
+        guard let price = latestPrice, let barrier else {
+            return "\(prefix) \(shortDate(date))"
+        }
+        let gap = Self.distancePercent(barrier: barrier, price: price)
+        if price <= 0 || barrier <= 0 { return "\(prefix) \(shortDate(date))" }
+        if gap <= 0 { return "\(prefix) \(shortDate(date)) · 已达标" }
+        return "\(prefix) \(shortDate(date)) · 还差 \(Format.percent(gap, digits: 1))"
     }
 
     private func shortDate(_ date: Date) -> String {
