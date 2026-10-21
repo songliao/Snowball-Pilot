@@ -35,8 +35,29 @@ struct PositionsView: View {
         var id: String { rawValue }
     }
 
+    enum SortOption: String, CaseIterable, Identifiable {
+        case `default` = "默认"
+        case notional = "名义本金"
+        case startDate = "起息日期"
+        case event = "事件早晚"
+
+        var id: String { rawValue }
+
+        /// 当前排序的顺序说明（菜单底部提示）。
+        var hint: String {
+            switch self {
+            case .default: "录入顺序"
+            case .notional: "由大到小"
+            case .startDate: "由早到晚"
+            case .event: "最近事件在前"
+            }
+        }
+    }
+
+    @State private var sort: SortOption = .default
+
     private var filtered: [Position] {
-        services.positions.filter { position in
+        let result = services.positions.filter { position in
             let statusOK: Bool = switch statusFilter {
             // 存续 = 未了结（存续中 + 已敲入），与桌面端「存续合约」默认口径一致
             case .alive: position.status == .active || position.status == .knockedIn
@@ -51,6 +72,39 @@ struct PositionsView: View {
             }
             return statusOK && structureOK
         }
+        return sorted(result)
+    }
+
+    private func sorted(_ positions: [Position]) -> [Position] {
+        let today = AppDate.startOfToday()
+        switch sort {
+        case .default:
+            return positions
+        case .notional:
+            return positions.sorted { $0.notional > $1.notional }
+        case .startDate:
+            return positions.sorted {
+                (AppDate.parse($0.tradeStartDate) ?? .distantFuture) < (AppDate.parse($1.tradeStartDate) ?? .distantFuture)
+            }
+        case .event:
+            // 敲出与派息取其中最近的一个作为「下次事件」；无后续事件的排在最后
+            return positions.sorted { lhs, rhs in
+                switch (nextEventDate(lhs, today: today), nextEventDate(rhs, today: today)) {
+                case let (l?, r?): return l < r
+                case (_?, nil): return true
+                case (nil, _?): return false
+                case (nil, nil): return false
+                }
+            }
+        }
+    }
+
+    private func nextEventDate(_ position: Position, today: Date) -> Date? {
+        let candidates = [
+            Calc.nextFutureDate(from: position.knockOutDates, today: today),
+            Calc.nextFutureDate(from: position.couponDates, today: today)
+        ]
+        return candidates.compactMap { $0 }.min()
     }
 
     var body: some View {
@@ -81,15 +135,34 @@ struct PositionsView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
-                        Button {
-                            showingImporter = true
-                        } label: {
-                            Label("导入 CSV", systemImage: "square.and.arrow.down")
+                        Section {
+                            ForEach(SortOption.allCases) { option in
+                                Button {
+                                    sort = option
+                                } label: {
+                                    if sort == option {
+                                        Label(option.rawValue, systemImage: "checkmark")
+                                    } else {
+                                        Text(option.rawValue)
+                                    }
+                                }
+                            }
+                        } header: {
+                            Text("排序")
+                        } footer: {
+                            Text(sort == .default ? "名义本金由大到小 · 起息日期由早到晚 · 最近敲出/派息在前" : sort.hint)
                         }
-                        Button {
-                            exportCSV()
-                        } label: {
-                            Label("导出 CSV", systemImage: "square.and.arrow.up")
+                        Section {
+                            Button {
+                                showingImporter = true
+                            } label: {
+                                Label("导入 CSV", systemImage: "square.and.arrow.down")
+                            }
+                            Button {
+                                exportCSV()
+                            } label: {
+                                Label("导出 CSV", systemImage: "square.and.arrow.up")
+                            }
                         }
                     } label: {
                         Image(systemName: "ellipsis.circle")
@@ -267,38 +340,46 @@ struct PositionRow: View {
             Text(position.underlyingCode)
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
-            // 核心信息行：现价 / 安全垫 / 下一敲出 / 派息观察；右侧了结收益或浮亏
+            metrics
+        }
+        .padding(.vertical, 2)
+    }
+
+    /// 核心信息：上排现价 / 安全垫 + 右侧盈亏；下排下一敲出、派息（含剩余天数）。
+    @ViewBuilder
+    private var metrics: some View {
+        VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 10) {
-                if isSettled {
-                    Spacer()
-                } else {
-                    if let price = latestPrice {
-                        Text(String(format: "%.2f", price))
-                            .font(.caption.monospacedDigit().weight(.medium))
-                        let margin = Calc.safetyMargin(
-                            currentPrice: price,
-                            knockInPrice: position.initialPrice * position.knockInBarrier
-                        )
-                        Text("安全垫 \(Format.percent(margin, digits: 1))")
-                            .font(.caption.monospacedDigit())
-                            .foregroundStyle(marginColor(margin))
-                    }
-                    if let ko = nextKnockOutShort {
-                        Text("敲出 \(ko)")
+                if let price = latestPrice, !isSettled {
+                    Text(String(format: "%.2f", price))
+                        .font(.caption.monospacedDigit().weight(.medium))
+                    let margin = Calc.safetyMargin(
+                        currentPrice: price,
+                        knockInPrice: position.initialPrice * position.knockInBarrier
+                    )
+                    Text("安全垫 \(Format.percent(margin, digits: 1))")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(marginColor(margin))
+                }
+                Spacer(minLength: 0)
+                payoffText
+            }
+            if !isSettled {
+                HStack(spacing: 10) {
+                    if let ko = nextKnockOutDate {
+                        Text(eventLabel("敲出", date: ko))
                             .font(.caption.monospacedDigit())
                             .foregroundStyle(.green)
                     }
-                    if position.structureType == .phoenix, let cp = nextCouponShort {
-                        Text("派息 \(cp)")
+                    if position.structureType == .phoenix, let cp = nextCouponDate {
+                        Text(eventLabel("派息", date: cp))
                             .font(.caption.monospacedDigit())
                             .foregroundStyle(.blue)
                     }
-                    Spacer()
+                    Spacer(minLength: 0)
                 }
-                payoffText
             }
         }
-        .padding(.vertical, 2)
     }
 
     @ViewBuilder
@@ -315,22 +396,21 @@ struct PositionRow: View {
         }
     }
 
-    private var nextKnockOutShort: String? {
-        let today = AppDate.startOfToday()
-        guard let date = Calc.stringArray(position.knockOutDates)
-            .compactMap({ AppDate.parse($0) })
-            .filter({ $0 >= today })
-            .min() else { return nil }
-        return shortDate(date)
+    private var today: Date { AppDate.startOfToday() }
+
+    private var nextKnockOutDate: Date? {
+        Calc.nextFutureDate(from: position.knockOutDates, today: today)
     }
 
-    private var nextCouponShort: String? {
-        let today = AppDate.startOfToday()
-        guard let date = Calc.stringArray(position.couponDates)
-            .compactMap({ AppDate.parse($0) })
-            .filter({ $0 >= today })
-            .min() else { return nil }
-        return shortDate(date)
+    private var nextCouponDate: Date? {
+        Calc.nextFutureDate(from: position.couponDates, today: today)
+    }
+
+    /// 「敲出 12-20·28天」形如：日期 + 到下一次观察日的剩余天数。
+    private func eventLabel(_ prefix: String, date: Date) -> String {
+        let days = AppDate.truncatedDayCount(from: today, to: date)
+        let countdown = days > 0 ? "\(days)天" : "今天"
+        return "\(prefix) \(shortDate(date))·\(countdown)"
     }
 
     private func shortDate(_ date: Date) -> String {

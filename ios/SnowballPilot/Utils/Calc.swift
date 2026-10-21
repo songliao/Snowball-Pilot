@@ -35,6 +35,12 @@ enum Calc {
         }
     }
 
+    /// 从日期序列 JSON 中取「不早于今天」的最近一个观察日，没有则返回 nil。
+    /// 用于列表展示「下一敲出 / 下一派息」及其剩余天数，也用于按事件早晚排序。
+    static func nextFutureDate(from raw: String?, today: Date = AppDate.startOfToday()) -> Date? {
+        stringArray(raw).compactMap { AppDate.parse($0) }.filter { $0 >= today }.min()
+    }
+
     // MARK: - 基础计算
 
     /// 持有天数：max(0, end.diff(start, 'day'))。
