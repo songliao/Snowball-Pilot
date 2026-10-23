@@ -7,7 +7,7 @@
 
 ## 快照时间
 
-2026-10-18（Build 5 送审完成后采集）。以下「构建状态」表在此时刻从 App Store Connect 实读，之后会过期。
+2026-10-23（配置 Xcode Cloud 自动发布后采集）。以下「构建状态」表在此时刻从 App Store Connect 实读，之后会过期。
 
 ---
 
@@ -17,13 +17,30 @@ App：OTC Pilot ｜ Apple ID `6823939773` ｜ Bundle ID `com.snowball.pilot.ios`
 
 | Build | 上传时间 | 状态 | 分组 | 备注 |
 |---|---|---|---|---|
-| **5** | 2026-10-18 00:08 | **Waiting for Review** | Internal OTC + **External OTC** | 当前公测用的构建，90 天后过期 |
+| **6** | 2026-10-21 20:12 | **Testing** | Internal OTC + **External OTC** | 当前公测用的构建，约 2027-01 过期（上传后 90 天）；24 邀请 / 13 安装 |
+| 5 | 2026-10-18 00:08 | Expired | 无 | 首个公测版，已被 Build 6 取代 |
 | 4 | 2026-10-17 22:13 | Expired | 无 | 曾送审，后退审并过期 |
 | 3 | — | Expired | 无 | 带「Internal」标记，从未进外部组 |
 | 2 | — | Expired | 无 | 同上 |
 | 1 | — | Expired | 无 | 同上 |
 
 > Build 1/2/3 用 Xcode 的「TestFlight Internal Only」目的地上传，这类 build 在 ASC 里永久无法加入外部测试组，只能重新 Archive 并选「App Store Connect → Upload」重传。Build 4 之后改用了正确目的地。
+> Build 6 由本机 Xcode 手动 Archive 上传；同日晚些用 Xcode Cloud「Internal TestFlight Build」工作流手动跑 Build 6 时，因与已上传的 Build 6 撞号而失败（详见下「自动发布」一节）。
+
+---
+
+## 自动发布（Xcode Cloud，2026-10-23 起）
+
+参照 OTC-X 的做法，本 App 已把「每次推送到 GitHub `main` 分支 → 自动出内测构建」接到 Xcode Cloud，不再依赖本机 Xcode 手动 Archive 上传。
+
+- **触发**：向 `main` 推送任意提交，Xcode Cloud 的 **Internal TestFlight Build** 工作流自动开始（同一分支若有更新的推送，自动取消尚在排队/运行的旧构建）。
+- **动作**：Archive - iOS，Distribution Preparation 选 **App Store Connect**（这样产物可直接上传，不带「Internal Only」死标记）。
+- **投递**：Archive 完成后由 **TestFlight Internal Testing** 后置动作自动部署到 **Internal OTC 组（11 人）**。
+- **另一条 Default 工作流**：已去掉推送触发，只保留「手动启动」，仅编译校验、不投递，避免每次推送重复出两个构建。
+- **构建号**：由 Xcode Cloud 自己的计数器分配（每次构建 +1），会**覆盖**工程里的 `CURRENT_PROJECT_VERSION`。当前 **Next Build Number = 7**，因为 Build 6 已被本机手动上传占用；下次自动构建即 `1.0.0(7)`。撞号时报错「The bundle version must be higher than the previously uploaded version」，去 ASC → App → Xcode Cloud → Settings → Build Number 把下一个号抬到高于现有最大构建即可。
+
+> 注意：这条链只自动发到**内部** OTC 组（内测）。要进**外部** OTC 组（公测）仍需一次 Beta App Review，不会随每次推送自动过审——这是刻意为之，避免每次 push 都触发外部审核。
+> 建议今后不要再从本机 Xcode 手动 Archive 上传，否则手动构建号会和 Xcode Cloud 计数器撞号。
 
 ---
 
@@ -39,7 +56,7 @@ App：OTC Pilot ｜ Apple ID `6823939773` ｜ Bundle ID `com.snowball.pilot.ios`
 
 ---
 
-## 本版功能（Build 5，首个公测版）
+## 本版功能（Build 6，当前公测版）
 
 面向场外雪球／凤凰合约的持仓管理工具。
 
@@ -51,6 +68,25 @@ App：OTC Pilot ｜ Apple ID `6823939773` ｜ Bundle ID `com.snowball.pilot.ios`
 - **预警通知** — 前台每 5 分钟检查一次，按「当天 + 合约 + 预警理由」去重；通知权限在第一次真实预警时才请求
 - **CSV 导入导出** — 与桌面端字节兼容（RFC4180）
 - **零第三方依赖** — 系统 SQLite3、Swift Charts、URLSession
+
+---
+
+## Build 5 → Build 6 改动
+
+以下条目来自 git 历史（`ios/` 已入库，不再用时间戳倒推），为 Build 5 上传（2026-10-18 00:08）之后、Build 6 上传（2026-10-21 20:12）之前落在 `main` 上的提交：
+
+| 提交 | 主题 |
+|---|---|
+| `4daeb92` | fix: 日历首次进入卡顿、预警设置步进数字不刷新 |
+| `b6839d9` | feat: 持仓列表展示敲出/派息倒计时，右上角增加排序 |
+| `17f7e0d` | feat: 持仓列表默认按起息时间由近到远排序 |
+| `ab54eaf` | fix: 合约检查行内的备注按钮点不到（被 NavigationLink 吞掉整行点击） |
+| `4548e3e` | feat: 持仓卡片的敲出/派息改为展示到障碍价的价格距离 |
+| `6523ff9` | ui: 合约检查按钮图标调整，「加备注」改为「添加备注」 |
+| `1ba9ceb` | fix: 合约检查操作按钮改显式配色，图标不再与底色同色 |
+| `1747ba5` | chore: iOS build 号提升到 6、采纳 Xcode 27.1 推荐设置（非功能改动） |
+
+主线是**持仓列表/卡片的敲出·派息信息呈现**与**合约检查页的按钮可见性/可点击性**，外加日历首次进入卡顿修复。
 
 ---
 
