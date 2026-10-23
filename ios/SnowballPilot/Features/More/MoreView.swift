@@ -19,7 +19,7 @@ struct MoreView: View {
                     NavigationLink {
                         InstrumentManagementView()
                     } label: {
-                        Label("标的管理", systemImage: "chart.bar.xaxis")
+                        Label("标的管理", systemImage: "gearshape")
                     }
                     NavigationLink {
                         ContractCheckView()

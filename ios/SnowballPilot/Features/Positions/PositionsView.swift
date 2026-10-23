@@ -54,7 +54,7 @@ struct PositionsView: View {
         }
     }
 
-    @State private var sort: SortOption = .startDate
+    @State private var sort: SortOption = .event
 
     private var filtered: [Position] {
         let result = services.positions.filter { position in

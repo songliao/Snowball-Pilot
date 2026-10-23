@@ -433,7 +433,15 @@ struct PositionDetailView: View {
     private var phoenixSection: some View {
         let dates = Calc.stringArray(position.couponDates)
         Section("派息条款") {
-            LabeledContent("派息障碍") { Text(Format.percent(position.couponBarrier)).monospacedDigit() }
+            LabeledContent("派息障碍") {
+                // couponBarrier 存比例小数（0.95 = 95%），与敲出障碍行同样显示价格 + 百分比
+                HStack(spacing: 3) {
+                    Text(String(format: "%.2f", position.initialPrice * position.couponBarrier))
+                    Text(Format.percentRaw(position.couponBarrier * 100))
+                        .font(.caption2)
+                }
+                .monospacedDigit()
+            }
             if dates.isEmpty {
                 Text("未设置派息观察日").foregroundStyle(.tertiary)
             } else {
@@ -453,7 +461,7 @@ struct PositionDetailView: View {
     }
 
     private var feeSection: some View {
-        Section("返息与费用") {
+        Section("返息") {
             LabeledContent("年化后端返息") { Text(Format.percent(position.rebateAnnualPct)).monospacedDigit() }
             LabeledContent("绝对后端返息") { Text(Format.percent(position.rebateAbsoluteBackPct)).monospacedDigit() }
             LabeledContent("绝对前端返息") { Text(Format.percent(position.rebateAbsoluteFrontPct)).monospacedDigit() }
@@ -466,7 +474,7 @@ struct PositionDetailView: View {
         Section("交易费用") {
             LabeledContent("交易佣金") { Text(Format.percent(position.absFeePct)).monospacedDigit() }
             LabeledContent("年化费用") { Text(Format.percent(position.annualFeePct)).monospacedDigit() }
-            LabeledContent("收益分红") { Text(Format.percent(position.incomeDividendPct)).monospacedDigit() }
+            LabeledContent("收益分成") { Text(Format.percent(position.incomeDividendPct)).monospacedDigit() }
         }
     }
 
