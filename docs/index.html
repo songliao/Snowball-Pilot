@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta
+      name="description"
+      content="Snowball Pilot——场外雪球、凤凰合约的持仓管理工具。盯市、预警、事件跟踪、事后对账，一处搞定。数据完全存在本地，支持 macOS 与 Windows。"
+    />
+    <meta property="og:title" content="Snowball Pilot · 场外雪球、凤凰合约的持仓管理工具" />
+    <meta property="og:description" content="盯市、预警、事件跟踪、事后对账，一处搞定。数据完全存在本地。" />
+    <meta property="og:image" content="screenshots/snowball-pilot-overview.png" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f4f6fa" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0a101f" />
+    <title>Snowball Pilot · 场外雪球、凤凰合约的持仓管理工具</title>
+    <script>
+      // 首屏前定主题，避免暗色偏好者看到白闪。明暗跟随系统，可手动切换（记入 localStorage）
+      (function () {
+        var saved = null;
+        try { saved = localStorage.getItem('sbp_theme'); } catch (e) {}
+        var dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+        document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+      })();
+    </script>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="download-page">
+      <div class="download-inner">
+        <div class="topbar">
+          <a class="topbar-brand" href="./">
+            <img src="favicon.png" alt="" width="24" height="24" />
+            <span>Snowball Pilot</span>
+          </a>
+          <div class="topbar-actions">
+            <a
+              class="pill-btn"
+              href="https://github.com/songliao/Snowball-Pilot"
+              target="_blank"
+              rel="noreferrer"
+              >GitHub 仓库</a
+            >
+            <button class="pill-btn" id="theme-toggle" type="button" aria-label="切换明暗主题"></button>
+          </div>
+        </div>
+
+        <div class="download-hero">
+          <h1>Snowball Pilot</h1>
+          <p class="download-sub">场外雪球、凤凰合约的持仓管理工具</p>
+          <p class="download-version">最新版本<strong id="latest-version"></strong></p>
+        </div>
+
+        <div class="download-recommend" id="recommend" hidden>
+          <a class="download-btn" id="recommend-btn" href="#">下载</a>
+          <p class="download-recommend-note" id="recommend-note"></p>
+        </div>
+
+        <div class="download-groups">
+          <div class="download-group">
+            <h2>macOS</h2>
+            <ul class="download-requirements">
+              <li>需要 macOS 11 (Big Sur) 或更高版本</li>
+              <li>安装包已通过 Apple 签名与公证，下载后可直接打开</li>
+            </ul>
+            <a class="download-item" id="opt-mac-arm64" href="https://github.com/songliao/Snowball-Pilot/releases/latest/download/Snowball-Pilot-macOS-arm64.dmg">
+              <span class="download-item-label">Apple Silicon（M 系列芯片）</span>
+              <span class="download-item-note">2020 年及之后的 Mac</span>
+              <span class="download-item-file">Snowball-Pilot-macOS-arm64.dmg</span>
+            </a>
+            <a class="download-item" id="opt-mac-x64" href="https://github.com/songliao/Snowball-Pilot/releases/latest/download/Snowball-Pilot-macOS-x64.dmg">
+              <span class="download-item-label">Intel 芯片</span>
+              <span class="download-item-note">较老的 Intel Mac</span>
+              <span class="download-item-file">Snowball-Pilot-macOS-x64.dmg</span>
+            </a>
+          </div>
+          <div class="download-group">
+            <h2>Windows</h2>
+            <ul class="download-requirements">
+              <li>需要 Windows 10 及以上 64 位系统</li>
+              <li>应用无额外运行库依赖（自带 SQLite，无需 VC++ 运行库）</li>
+              <li>安装版在 Win11 24H2 上可能出现「无响应 / 无窗口」，该系统请改用便携版</li>
+              <li>Windows 安装包暂未签名，首次运行如遇 SmartScreen 拦截，点「更多信息 → 仍要运行」即可</li>
+            </ul>
+            <a class="download-item" id="opt-win-setup" href="https://github.com/songliao/Snowball-Pilot/releases/latest/download/Snowball-Pilot-Windows-Setup.exe">
+              <span class="download-item-label">安装版（Setup）</span>
+              <span class="download-item-note">按用户级安装，无需管理员权限</span>
+              <span class="download-item-file">Snowball-Pilot-Windows-Setup.exe</span>
+            </a>
+            <a class="download-item" id="opt-win-portable" href="https://github.com/songliao/Snowball-Pilot/releases/latest/download/Snowball-Pilot-Windows-Portable.exe">
+              <span class="download-item-label">便携版（免安装）</span>
+              <span class="download-item-note">Win11 24H2 建议</span>
+              <span class="download-item-file">Snowball-Pilot-Windows-Portable.exe</span>
+            </a>
+          </div>
+        </div>
+
+        <div class="download-readme">
+          <h2 class="download-readme-title">主要功能与特点</h2>
+          <p class="download-readme-sub">
+            场外雪球、凤凰合约的持仓管理工具——盯市、预警、事件跟踪、事后对账，一处搞定。
+          </p>
+
+          <div class="ai-md download-readme-intro">
+            <h2>这是什么</h2>
+            <p>
+              你手上管着几十笔场外合约——雪球、凤凰。它们的条款各不相同：什么时候敲出、敲出线在哪、什么时候派息、派息线在哪、保证金留多少。
+            </p>
+            <p>这些条款一旦记错、漏记一次观察日，损失就是真金白银。</p>
+            <p>
+              Snowball Pilot 把这些条款录进去，之后所有数字自动算、所有日子自动提醒、所有记错的地方自动挑出来。你只需要看它指出来的地方。
+            </p>
+            <ul>
+              <li><strong>数据存在你自己电脑上</strong>，不联网也能用，不上传任何合约信息</li>
+              <li><strong>行情自动获取</strong>，价格、指数、敲入敲出状态自动更新</li>
+              <li><strong>每天打开就知道该看哪几笔</strong></li>
+            </ul>
+          </div>
+
+          <div class="fc" id="feature-carousel" tabindex="0" role="group" aria-roledescription="轮播" aria-label="主要功能">
+            <div class="fc-head">
+              <div class="fc-head-text">
+                <h3 class="fc-title"></h3>
+                <p class="fc-tagline"></p>
+              </div>
+              <span class="fc-count"
+                ><span class="fc-count-cur">01</span><span class="fc-count-sep">/</span><span class="fc-count-total">09</span></span
+              >
+            </div>
+
+            <div class="fc-viewport">
+              <article class="fc-slide" data-title="投资总览" data-tagline="今天打开第一眼" role="group" aria-roledescription="幻灯片" aria-label="第 1 页，共 9 页">
+                <div class="fc-shift">
+                  <figure class="fc-figure">
+                    <img src="screenshots/snowball-pilot-overview.png" alt="投资总览界面截图" draggable="false" decoding="async" loading="lazy" />
+                    <figcaption>演示数据</figcaption>
+                  </figure>
+                  <div class="ai-md fc-body">
+                    <p>四张卡：名义本金、保证金、合约数、已了结收益。每张都分「存续中」和「累计」，一眼看出当前敞口和历史赚亏。</p>
+                    <p>下面是四大宽基指数的实时行情和涨跌幅，可以设置 10 秒到 5 分钟自动刷新。</p>
+                    <p><strong>预警看板</strong>：所有快要出事——快敲出、快派息、快敲入——的合约都排在上面，鼠标点进去直接看详情。不用自己翻。</p>
+                  </div>
+                </div>
+              </article>
+
+              <article class="fc-slide" data-title="事件日历" data-tagline="今天是几号，该看哪几笔" role="group" aria-roledescription="幻灯片" aria-label="第 2 页，共 9 页">
+                <div class="fc-shift">
+                  <figure class="fc-figure">
+                    <img src="screenshots/snowball-pilot-calendar.png" alt="事件日历界面截图" draggable="false" decoding="async" loading="lazy" />
+                    <figcaption>演示数据</figcaption>
+                  </figure>
+                  <div class="ai-md fc-body">
+                    <p>月历上直接标出全部合约的关键日子：绿色 = 敲出观察日，蓝色 = 派息观察日。</p>
+                    <p>每个事件都写着标的、合约编号、障碍价。点一下跳到持仓详情。</p>
+                    <p>早上打开日历，今天要盯什么一目了然。</p>
+                  </div>
+                </div>
+              </article>
+
+              <article class="fc-slide" data-title="持仓管理" data-tagline="所有合约一张表" role="group" aria-roledescription="幻灯片" aria-label="第 3 页，共 9 页">
+                <div class="fc-shift">
+                  <figure class="fc-figure">
+                    <img src="screenshots/snowball-pilot-positions.png" alt="持仓管理界面截图" draggable="false" decoding="async" loading="lazy" />
+                    <figcaption>演示数据</figcaption>
+                  </figure>
+                  <div class="ai-md fc-body">
+                    <p>按需排序，默认只显示存续中的，随时切到含已了结的全部。</p>
+                    <p>每笔合约实时显示：当前价、下一个敲出日是哪天、那天要看什么价位、<strong>安全垫还有多少</strong>、现在赚还是亏。</p>
+                    <p>
+                      <strong>安全垫</strong>是最该盯的数——现价离敲入线还有多少空间。快归零了，价格再跌一点就敲入，20% 保证金限亏就锁死了。
+                    </p>
+                  </div>
+                </div>
+              </article>
+
+              <article class="fc-slide" data-title="合约录入与跟踪" data-tagline="录进去，之后全自动" role="group" aria-roledescription="幻灯片" aria-label="第 4 页，共 9 页">
+                <div class="fc-shift">
+                  <figure class="fc-figure">
+                    <img src="screenshots/snowball-pilot-entry.png" alt="合约录入与跟踪界面截图" draggable="false" decoding="async" loading="lazy" />
+                    <figcaption>演示数据</figcaption>
+                  </figure>
+                  <div class="ai-md fc-body">
+                    <p>
+                      <strong>两种录入方式</strong>：<strong>填表</strong>——雪球和凤凰各一套表单，按结构只显示该结构的条款；<strong>粘贴导入</strong>——把券商发来的合约要素文本直接粘进去，自动识别是雪球还是凤凰，自动拆分敲出日和障碍价、敲入条款、保证金、返息费用，识别不了的字段会明确提示「已忽略」，不会悄悄丢掉。
+                    </p>
+                    <p>
+                      <strong>管得动的条款</strong>：敲出（观察日、障碍价、票息、敲出增强参与率、到期票息）、敲入（观察方式、敲入线、执行价、参与率）、保证金比例、最大亏损比例、凤凰派息、费用返息。
+                    </p>
+                    <p>
+                      <strong>状态流转</strong>：标记敲入、登记敲出、登记到期自动算收益、凤凰派息登记；改错了随时能改能撤销，不会留错记录。
+                    </p>
+                  </div>
+                </div>
+              </article>
+
+              <article class="fc-slide" data-title="持仓详情" data-tagline="点位图示与收益测算一目了然" role="group" aria-roledescription="幻灯片" aria-label="第 5 页，共 9 页">
+                <div class="fc-shift">
+                  <figure class="fc-figure">
+                    <img src="screenshots/snowball-pilot-position-detail.png" alt="持仓详情界面截图" draggable="false" decoding="async" loading="lazy" />
+                    <figcaption>演示数据</figcaption>
+                  </figure>
+                  <div class="ai-md fc-body">
+                    <p><strong>敲出观察、敲出收益估算、敲入预警</strong>三张卡片，持仓风险与预期收益测算一看便知。</p>
+                    <p>
+                      <strong>实时点位图示</strong>：期初价、敲入线、敲出障碍、派息线、当前价画在同一张图上。安全垫多厚、离下一道障碍还有多远，不用算，看图就知道。
+                    </p>
+                  </div>
+                </div>
+              </article>
+
+              <article class="fc-slide" data-title="持仓分析" data-tagline="风险在哪" role="group" aria-roledescription="幻灯片" aria-label="第 6 页，共 9 页">
+                <div class="fc-shift">
+                  <figure class="fc-figure">
+                    <img src="screenshots/snowball-pilot-analysis.png" alt="持仓分析界面截图" draggable="false" decoding="async" loading="lazy" />
+                    <figcaption>演示数据</figcaption>
+                  </figure>
+                  <div class="ai-md fc-body">
+                    <ul>
+                      <li><strong>按标的环形图</strong>：本金压在哪个标的上，有没有过度集中</li>
+                      <li><strong>按结构环形图</strong>：雪球和凤凰各占多少</li>
+                      <li>
+                        <strong>风险散点图</strong>：横轴安全垫，纵轴本金规模。<strong>越靠右下越危险</strong>——安全垫薄、规模又大，那几笔就是真正要盯的。点一下直达详情
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </article>
+
+              <article class="fc-slide" data-title="合约检查" data-tagline="专门抓你记错的地方" role="group" aria-roledescription="幻灯片" aria-label="第 7 页，共 9 页">
+                <div class="fc-shift">
+                  <figure class="fc-figure">
+                    <img src="screenshots/snowball-pilot-check.png" alt="合约检查界面截图" draggable="false" decoding="async" loading="lazy" />
+                    <figcaption>演示数据</figcaption>
+                  </figure>
+                  <div class="ai-md fc-body">
+                    <p>
+                      拿历史行情和合约条款自动对账，查出四类问题：<strong>漏记敲出</strong>（价格够敲出线但你没记）、<strong>漏记派息</strong>、<strong>误记敲出</strong>（记了但那天没到线）、<strong>误记派息</strong>。
+                    </p>
+                    <p>每一笔都列出日期、障碍价、当天实际收盘价、差多少，点进去就能改。</p>
+                    <p>
+                      这是<strong>事后对账工具</strong>——用来补漏和纠错，不是每天要看的东西，但出问题时它能直接告诉你问题在哪。
+                    </p>
+                  </div>
+                </div>
+              </article>
+
+              <article class="fc-slide" data-title="标的管理" data-tagline="行情数据维护" role="group" aria-roledescription="幻灯片" aria-label="第 8 页，共 9 页">
+                <div class="fc-shift">
+                  <figure class="fc-figure">
+                    <img src="screenshots/snowball-pilot-underlyings.png" alt="标的管理界面截图" draggable="false" decoding="async" loading="lazy" />
+                    <figcaption>演示数据</figcaption>
+                  </figure>
+                  <div class="ai-md fc-body">
+                    <ul>
+                      <li>加删你要跟踪的指数 / 标的</li>
+                      <li>每个标的的最新价、日/周/月/年涨跌（自动按区间高低点着色）</li>
+                      <li><strong>K 线图</strong>，看历史走势随时切换</li>
+                      <li><strong>标的回溯</strong>：拉近两年历史数据，新增标的第一天就自动补全</li>
+                    </ul>
+                  </div>
+                </div>
+              </article>
+
+              <article class="fc-slide" data-title="预警设置" data-tagline="提前量由你定" role="group" aria-roledescription="幻灯片" aria-label="第 9 页，共 9 页">
+                <div class="fc-shift">
+                  <figure class="fc-figure">
+                    <img src="screenshots/snowball-pilot-alerts.png" alt="预警设置界面截图" draggable="false" decoding="async" loading="lazy" />
+                    <figcaption>演示数据</figcaption>
+                  </figure>
+                  <div class="ai-md fc-body">
+                    <p>四个阈值自己调：敲出提前几天开始提示、离敲出线多近提示、离派息线多近提示、离敲入线多近提示。</p>
+                    <p><strong>改参数时立刻能看到当前会触发哪些合约</strong>，不用等。设好了打开桌面通知，到点主动弹窗。</p>
+                  </div>
+                </div>
+              </article>
+            </div>
+
+            <div class="fc-controls">
+              <button class="fc-arrow" type="button" data-step="-1" aria-label="上一个功能">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true">
+                  <path d="M14.5 5.5 8 12l6.5 6.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </button>
+              <div class="fc-rail">
+                <!-- 分段按钮由 site.js 按 slides 数量生成 -->
+              </div>
+              <button class="fc-arrow" type="button" data-step="1" aria-label="下一个功能">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true">
+                  <path d="M9.5 5.5 16 12l-6.5 6.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="ai-md download-readme-notes">
+            <h2>还需要知道的</h2>
+            <ul>
+              <li><strong>自动更新</strong>：新版本自动下载安装，不用手动升级</li>
+              <li><strong>离线可用</strong>：历史行情存在本地，断网时合约检查、持仓分析、日历照常用</li>
+              <li><strong>界面</strong>：明暗两套主题，随时切换</li>
+              <li><strong>多账号</strong>：每个账号的数据相互独立，互不可见</li>
+            </ul>
+            <h2>快速上手建议</h2>
+            <ol>
+              <li>登录后先进「标的」，把常跟的指数加进去，等历史数据回填完成</li>
+              <li>进「持仓管理」，把在手的合约录进来（优先用粘贴导入，快得多）</li>
+              <li>进「预警设置」，按你的风险偏好调四个阈值</li>
+              <li>以后每天：先看「投资总览」预警，再看「事件日历」今天有没有事</li>
+              <li>每季度末或了结一批后，跑一次「合约检查」补漏纠错</li>
+            </ol>
+          </div>
+        </div>
+
+        <p class="download-footer">
+          其他格式（绿色版 zip、历史版本等）见
+          <a href="https://github.com/songliao/Snowball-Pilot/releases/latest" target="_blank" rel="noreferrer">GitHub Releases</a>
+        </p>
+        <p class="download-footer download-copyright">© 2026 Snowball Pilot · 数据完全存在你自己的电脑上</p>
+      </div>
+    </div>
+
+    <script src="site.js"></script>
+  </body>
+</html>
