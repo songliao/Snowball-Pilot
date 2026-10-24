@@ -154,11 +154,22 @@ export default function Positions() {
     return 1 - barrierPrice / price
   }
 
+  // 敲入距离 = 现价 / 敲入障碍价格 - 1（正=未敲入，负=已敲入）
+  function getKiDistance(p: PositionData): number | null {
+    const code = p.underlying_code
+    if (code == null || p.knock_in_barrier == null || !p.initial_price) return null
+    const kiPrice = p.initial_price * p.knock_in_barrier
+    if (kiPrice <= 0) return null
+    const price = latestPrices[code]
+    if (price == null) return null
+    return price / kiPrice - 1
+  }
+
   const buildColumns = (isPhoenix: boolean): TableProps<PositionData>['columns'] => {
     // 百分比列宽：随页面宽度等比伸缩，各列相对均衡
     const W = isPhoenix
-      ? { contract: '12%', date: '7%', underlying: '9%', price: '9%', couponDate: '9%', couponBarrier: '8.5%', koDate: '9%', koBarrier: '11%', notional: '9%', margin: '7.5%', status: '7%' }
-      : { contract: '13%', date: '8.5%', underlying: '10.5%', price: '9.5%', koDate: '10.5%', koBarrier: '11.5%', notional: '10%', margin: '9.5%', status: '8.5%' }
+      ? { contract: '11%', date: '6.5%', underlying: '8%', price: '8%', couponDate: '8%', couponBarrier: '7.5%', koDate: '8%', koBarrier: '9.5%', kiDistance: '9.5%', notional: '8.5%', margin: '7%', status: '6.5%' }
+      : { contract: '12%', date: '8%', underlying: '9.5%', price: '8.5%', koDate: '9.5%', koBarrier: '10%', kiDistance: '10%', notional: '9%', margin: '8.5%', status: '8%' }
     const cols: TableProps<PositionData>['columns'] = [
       {
         title: '合约编号',
@@ -220,6 +231,20 @@ export default function Positions() {
         sorter: (a, b) => (getKoDistance(a) ?? -Infinity) - (getKoDistance(b) ?? -Infinity),
         render: (_, r) => {
           const d = getKoDistance(r)
+          if (d == null) return '—'
+          const color = d > 0 ? '#52c41a' : d < 0 ? '#ff4d4f' : undefined
+          return <span style={{ color }}>{formatPercent(d)}</span>
+        }
+      },
+      {
+        title: '敲入距离',
+        key: 'knock_in_distance',
+        width: W.kiDistance,
+        align: 'right',
+        onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
+        sorter: (a, b) => (getKiDistance(a) ?? -Infinity) - (getKiDistance(b) ?? -Infinity),
+        render: (_, r) => {
+          const d = getKiDistance(r)
           if (d == null) return '—'
           const color = d > 0 ? '#52c41a' : d < 0 ? '#ff4d4f' : undefined
           return <span style={{ color }}>{formatPercent(d)}</span>
