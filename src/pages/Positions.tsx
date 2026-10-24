@@ -154,15 +154,15 @@ export default function Positions() {
     return 1 - barrierPrice / price
   }
 
-  // 敲入距离 = 现价 / 敲入障碍价格 - 1（正=未敲入，负=已敲入）
+  // 敲入距离 = 1 - 敲入障碍价格 / 现价（正=未敲入，负=已敲入）
   function getKiDistance(p: PositionData): number | null {
     const code = p.underlying_code
     if (code == null || p.knock_in_barrier == null || !p.initial_price) return null
     const kiPrice = p.initial_price * p.knock_in_barrier
     if (kiPrice <= 0) return null
     const price = latestPrices[code]
-    if (price == null) return null
-    return price / kiPrice - 1
+    if (price == null || price === 0) return null
+    return 1 - kiPrice / price
   }
 
   const buildColumns = (isPhoenix: boolean): TableProps<PositionData>['columns'] => {
