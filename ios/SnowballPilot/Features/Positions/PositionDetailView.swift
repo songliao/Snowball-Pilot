@@ -711,8 +711,22 @@ private struct DividendSheet: View {
             saveError = "派息记录序列化失败"
             return
         }
+        // 派息日序列 = 已填金额的观察日。与桌面端语义对齐：合约检查、桌面端、
+        // CSV 互通都靠 couponPaymentDates 判定「已派息」，旧版只写 couponReceived
+        // 会导致合约检查把已登记的派息误报为漏记。
+        let paidDates = dates.enumerated().compactMap { index, dateText -> String? in
+            guard index < values.count, !values[index].isEmpty else { return nil }
+            return dateText
+        }
+        guard let paidData = try? JSONSerialization.data(withJSONObject: paidDates),
+              let paidJson = String(data: paidData, encoding: .utf8)
+        else {
+            saveError = "派息记录序列化失败"
+            return
+        }
         var updated = position
         updated.couponReceived = json
+        updated.couponPaymentDates = paidJson
         do {
             _ = try services.savePosition(updated)
         } catch {

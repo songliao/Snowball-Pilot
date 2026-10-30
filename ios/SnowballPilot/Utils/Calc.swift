@@ -41,6 +41,25 @@ enum Calc {
         stringArray(raw).compactMap { AppDate.parse($0) }.filter { $0 >= today }.min()
     }
 
+    /// 已派息观察日集合。兼容两种记录形态：
+    /// a) 桌面端 / 新版 iOS 派息登记：`couponPaymentDates` 直接记录派息日，以其为准；
+    /// b) 旧版 iOS 派息登记只写 `couponReceived`（按观察日索引、空串占位、不写
+    ///    couponPaymentDates）——此时按索引还原已派息的观察日，否则老数据会被
+    ///    合约检查全部误报为「漏记派息」。
+    /// 两者并存时以 couponPaymentDates 为准（桌面端的 couponReceived 与派息日
+    /// 按序配对，长度不等于观察日数，不能按观察日索引解读）。
+    static func recordedCouponDates(_ position: Position) -> Set<String> {
+        let paidDates = Set(stringArray(position.couponPaymentDates))
+        guard paidDates.isEmpty else { return paidDates }
+        let dates = stringArray(position.couponDates)
+        let received = stringArray(position.couponReceived)
+        // iOS 旧登记形态：金额数组与观察日序列等长（未派息期为空串占位）
+        guard !dates.isEmpty, received.count == dates.count else { return [] }
+        return Set(dates.enumerated().compactMap { index, dateText in
+            received[index].trimmingCharacters(in: .whitespaces).isEmpty ? nil : dateText
+        })
+    }
+
     // MARK: - 基础计算
 
     /// 持有天数：max(0, end.diff(start, 'day'))。

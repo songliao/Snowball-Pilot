@@ -146,11 +146,11 @@ struct ContractCheckView: View {
                 }
             }
 
-            // 2) 漏记派息：凤凰、存续中，观察日 ≤ 今天且未在已派息集合，收盘 ≥ 派息障碍
+            // 2) 漏记派息：凤凰、存续中，观察日 ≤ 今天且未登记派息，收盘 ≥ 派息障碍
             if isActive, position.structureType == .phoenix, initial > 0, position.couponBarrier > 0 {
-                let paidDates = Set(Calc.stringArray(position.couponPaymentDates))
+                let recorded = Calc.recordedCouponDates(position)
                 let dates = Calc.stringArray(position.couponDates)
-                for (index, dateText) in dates.enumerated() where dateText <= today && !paidDates.contains(dateText) {
+                for (index, dateText) in dates.enumerated() where dateText <= today && !recorded.contains(dateText) {
                     let barrierPrice = initial * position.couponBarrier
                     if let close = closePrice(position.underlyingCode, dateText), close >= barrierPrice {
                         result.append(Issue(
@@ -194,9 +194,9 @@ struct ContractCheckView: View {
                 }
             }
 
-            // 4) 误记派息：凤凰（不限状态），已派息日收盘未达标
+            // 4) 误记派息：凤凰（不限状态），已登记派息的观察日收盘未达标
             if position.structureType == .phoenix, initial > 0, position.couponBarrier > 0 {
-                let dates = Calc.stringArray(position.couponPaymentDates)
+                let dates = Calc.recordedCouponDates(position).sorted()
                 for (index, dateText) in dates.enumerated() where dateText <= today {
                     let barrierPrice = initial * position.couponBarrier
                     if let close = closePrice(position.underlyingCode, dateText), close < barrierPrice {
