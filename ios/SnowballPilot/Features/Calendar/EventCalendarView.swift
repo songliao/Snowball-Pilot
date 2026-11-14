@@ -336,7 +336,7 @@ private struct EventRow: View {
             return "\(underlying) · 障碍 \(String(format: "%.2f", barrier))%"
         }
         if event.kind == .coupon, let rate = event.couponRatePct {
-            return "\(underlying) · 派息率 \(String(format: "%.2f", rate))%"
+            return "\(underlying) · 派息率 \(Format.couponPercentRaw(rate))"
         }
         return underlying
     }

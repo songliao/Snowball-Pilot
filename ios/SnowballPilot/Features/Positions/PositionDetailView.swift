@@ -372,7 +372,7 @@ struct PositionDetailView: View {
             LabeledContent("敲入执行价") { Text(Format.percent(position.knockInStrike)).monospacedDigit() }
             LabeledContent("敲入观察") { Text(Format.knockInObservationLabel(position.knockInObservation)) }
             if position.structureType == .snowball {
-                LabeledContent("红利票息") { Text(Format.percent(position.maturityCoupon)).monospacedDigit() }
+                LabeledContent("红利票息") { Text(Format.couponPercent(position.maturityCoupon)).monospacedDigit() }
                 LabeledContent("敲出增强参与率") { Text(Format.percent(position.knockOutEnhanceParticipation)).monospacedDigit() }
             }
         }
@@ -419,9 +419,9 @@ struct PositionDetailView: View {
                         .monospacedDigit()
                         .frame(width: 124, alignment: .trailing)
                         if showCoupons {
-                            Text(index < coupons.count ? Format.percentRaw(coupons[index]) : "—")
+                            Text(index < coupons.count ? Format.couponPercentRaw(coupons[index]) : "—")
                                 .monospacedDigit()
-                                .frame(width: 64, alignment: .trailing)
+                                .frame(width: 78, alignment: .trailing)
                         }
                     }
                 }
@@ -451,7 +451,7 @@ struct PositionDetailView: View {
                         Text(dateText)
                             .monospacedDigit()
                             .frame(maxWidth: .infinity, alignment: .leading)
-                        Text(Format.percent(position.couponRate))
+                        Text(Format.couponPercent(position.couponRate))
                             .monospacedDigit()
                             .frame(width: 72, alignment: .trailing)
                     }

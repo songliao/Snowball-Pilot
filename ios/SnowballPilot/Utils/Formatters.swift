@@ -30,6 +30,17 @@ enum Format {
         String(format: "%.\(digits)f%%", value)
     }
 
+    /// 票息显示：小数输入固定 4 位小数完整展示，与桌面端详情页派息率 toFixed(4) 对齐
+    /// （0.0165 → "1.6500%"，0.012345 → "1.2345%"）。
+    static func couponPercent(_ value: Double) -> String {
+        String(format: "%.4f%%", value * 100)
+    }
+
+    /// 票息显示：输入已是百分数数值（1.65 → "1.6500%"）。
+    static func couponPercentRaw(_ value: Double) -> String {
+        String(format: "%.4f%%", value)
+    }
+
     /// 带正负号的百分比（0.0325 → "+3.25%"，负值自带 - 号）。
     static func signedPercent(_ value: Double, digits: Int = 2) -> String {
         (value > 0 ? "+" : "") + percent(value, digits: digits)
