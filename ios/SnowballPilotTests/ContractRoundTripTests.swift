@@ -98,6 +98,10 @@ struct ContractRoundTripTests {
         position.tradeStartDate = "2026-02-01"
         position.initialPrice = 6800
         position.marginRatio = 0.5
+        position.knockInBarrier = 0.75
+        position.knockInStrike = 0.9
+        position.knockInObservation = "maturity"
+        position.knockInParticipation = 0.8
         position.couponBarrier = 0.95
         position.couponRate = 0.015
         position.couponDates = FormLists.stringsJSON(["2026-05-01", "2026-08-01"])
@@ -114,6 +118,11 @@ struct ContractRoundTripTests {
 
         #expect(copy.productName == position.productName)
         #expect(copy.underlyingCode == position.underlyingCode)
+        // 敲入组为两结构共有，凤凰复制不得丢敲入参数（用非默认值防默认兜底掩盖）
+        #expect(abs(copy.knockInBarrier - position.knockInBarrier) < epsilon)
+        #expect(abs(copy.knockInStrike - position.knockInStrike) < epsilon)
+        #expect(copy.knockInObservation == position.knockInObservation)
+        #expect(abs(copy.knockInParticipation - position.knockInParticipation) < epsilon)
         #expect(abs(copy.couponBarrier - position.couponBarrier) < epsilon)
         #expect(abs(copy.couponRate - position.couponRate) < epsilon)
         #expect(copy.accrualBasis == "one")

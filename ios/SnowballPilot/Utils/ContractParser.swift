@@ -106,6 +106,21 @@ enum ContractParser {
             lines.append(contentsOf: knockOutBarriers.map(jsNumberString))
         }
 
+        // 敲入组为雪球、凤凰共有字段（表单「基础条款」对两种结构都展示），
+        // 必须在结构分支之外导出，否则复制凤凰合约会丢敲入障碍/执行价/参与率/观察方式。
+        if position.knockInBarrier > 0 {
+            lines.append("敲入障碍价格：\(percentText(position.knockInBarrier))")
+        }
+        if !position.knockInObservation.isEmpty {
+            lines.append("敲入观察方式：\(position.knockInObservation)")
+        }
+        if position.knockInStrike > 0 {
+            lines.append("敲入执行价格：\(percentText(position.knockInStrike))")
+        }
+        if position.knockInParticipation > 0 {
+            lines.append("敲入参与率：\(percentText(position.knockInParticipation))")
+        }
+
         switch position.structureType {
         case .snowball:
             let coupons = Calc.numberArray(position.knockOutCoupons)
@@ -118,18 +133,6 @@ enum ContractParser {
             }
             if position.knockOutEnhanceParticipation > 0 {
                 lines.append("敲出增强参与率：\(percentText(position.knockOutEnhanceParticipation))")
-            }
-            if position.knockInBarrier > 0 {
-                lines.append("敲入障碍价格：\(percentText(position.knockInBarrier))")
-            }
-            if !position.knockInObservation.isEmpty {
-                lines.append("敲入观察方式：\(position.knockInObservation)")
-            }
-            if position.knockInStrike > 0 {
-                lines.append("敲入执行价格：\(percentText(position.knockInStrike))")
-            }
-            if position.knockInParticipation > 0 {
-                lines.append("敲入参与率：\(percentText(position.knockInParticipation))")
             }
         case .phoenix:
             if position.couponBarrier > 0 {
