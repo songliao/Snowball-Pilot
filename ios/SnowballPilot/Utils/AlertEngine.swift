@@ -100,8 +100,8 @@ enum AlertEngine {
                 }
             }
 
-            // 3) 现价距敲入障碍的涨幅在阈值内（含已跌破敲入线）
-            if position.knockInBarrier > 0 {
+            // 3) 现价距敲入障碍的涨幅在阈值内（含已跌破敲入线）；已敲入合约不再预警敲入
+            if position.status != .knockedIn, position.knockInBarrier > 0 {
                 let kiPrice = initial * position.knockInBarrier
                 let kiGap = (kiPrice / cur - 1) * 100
                 if kiGap >= -config.knockInNearPct {

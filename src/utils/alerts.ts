@@ -105,8 +105,8 @@ export function computeAlerts(
       }
     }
 
-    // 3) 现价距敲入障碍价的涨幅在阈值%以内（含已跌破敲入线）
-    if (typeof p.knock_in_barrier === 'number' && p.knock_in_barrier > 0) {
+    // 3) 现价距敲入障碍价的涨幅在阈值%以内（含已跌破敲入线）；已敲入合约不再预警敲入
+    if (p.status !== 'knocked_in' && typeof p.knock_in_barrier === 'number' && p.knock_in_barrier > 0) {
       const kiPrice = initial * p.knock_in_barrier
       const kiGap = (kiPrice / cur - 1) * 100
       if (kiGap >= -cfg.knockInNearPct) {

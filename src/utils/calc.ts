@@ -38,7 +38,7 @@ export function calcSafetyMargin(currentPrice: number, knockInPrice: number): nu
  * 计算浮动盈亏
  * - active（未敲入未敲出）：名义本金 × 票息率 × 持有天数/365
  * - knocked_out：名义本金 × 票息率 × 持有天数/365（已实现）
- * - knocked_in（持有到期）：名义本金 × (期末价/期初价 - 1)
+ * - knocked_in（已敲入仍属存续）：不按现价估算浮亏，盈亏等到期/敲出了结时才有定数
  */
 export function calcPnL(
   position: PositionData,
@@ -53,11 +53,8 @@ export function calcPnL(
   }
 
   if (status === 'knocked_in') {
-    if (currentPrice && currentPrice > 0) {
-      const pnl = notional * (currentPrice / initial_price - 1)
-      return { pnl, pnlRate: (pnl / notional) * 100, type: '敲入浮亏' }
-    }
-    return { pnl: 0, pnlRate: 0, type: '敲入待估' }
+    // 敲入后合约继续存续，最终盈亏取决于到期/敲出了结，不按现价估算浮亏
+    return { pnl: 0, pnlRate: 0, type: '敲入存续' }
   }
 
   if (status === 'matured') {

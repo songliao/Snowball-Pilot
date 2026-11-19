@@ -44,14 +44,34 @@ interface FalseCoupon {
   closePrice: number
 }
 
-type MissedItem = MissedKo | MissedCoupon | FalseKo | FalseCoupon
+interface MissedKi {
+  type: 'ki'
+  position: PositionData
+  date: string
+  barrier: number
+  barrierPrice: number
+  closePrice: number
+}
+
+interface FalseKi {
+  type: 'false_ki'
+  position: PositionData
+  date: string
+  barrier: number
+  barrierPrice: number
+  closePrice: number
+}
+
+type MissedItem = MissedKo | MissedCoupon | FalseKo | FalseCoupon | MissedKi | FalseKi
 
 const STRUCTURE_LABEL: Record<string, string> = { snowball: '雪球', phoenix: '凤凰' }
 
 const EVENT_LABEL: Record<string, string> = {
   ko: '遗漏敲出',
   coupon: '遗漏派息',
+  ki: '遗漏敲入',
   false_ko: '误记敲出',
+  false_ki: '误记敲入',
   false_coupon: '误记派息',
 }
 
@@ -83,8 +103,14 @@ function buildCheckSummary(item: MissedItem): string {
   ]
   if (pos.notional != null) lines.push(`名义本金：${pos.notional.toLocaleString('zh-CN')}`)
 
-  // 金额：派息事件给出派息金额，敲出事件给出敲出票息金额
-  if ((item.type === 'coupon' || item.type === 'false_coupon') && pos.coupon_rate != null) {
+  // 金额：敲入事件给出最大亏损，派息事件给出派息金额，敲出事件给出敲出票息金额
+  if (item.type === 'ki' || item.type === 'false_ki') {
+    if (pos.notional != null) {
+      const lossPct = (pos.max_loss_pct ?? 0) * 100
+      const loss = pos.notional * (pos.max_loss_pct ?? 0)
+      lines.push(`最大亏损：${fmtCny(loss)}（名义本金 × 最大亏损 ${lossPct.toFixed(2)}%）`)
+    }
+  } else if ((item.type === 'coupon' || item.type === 'false_coupon') && pos.coupon_rate != null) {
     const div = 1 - (pos.income_dividend_pct ?? 0)
     const amount = pos.notional != null ? pos.notional * pos.coupon_rate * div : null
     const rateStr = `${(pos.coupon_rate * 100).toFixed(2)}%`
@@ -194,6 +220,32 @@ export default function ContractCheck() {
 
       const missed: MissedItem[] = []
 
+      // 敲入观察日收盘序列（升序、≤ 今天）：
+      // - 到期观察：仅合约到期日（最后一个敲出观察日）；
+      // - 每日观察：起息日（缺失则不限）以来已入库的每个行情日。
+      const kiCloseSeries = (p: PositionData, sorted: PriceData[]): { date: string; closePrice: number }[] => {
+        let kiKoDates: string[] = []
+        try { kiKoDates = p.knock_out_dates ? JSON.parse(p.knock_out_dates) : [] } catch { /* skip */ }
+        const rows: { date: string; closePrice: number }[] = []
+        if (p.knock_in_observation === 'maturity') {
+          const maturity = kiKoDates.length ? kiKoDates[kiKoDates.length - 1] : null
+          if (!maturity) return rows
+          const md = dayjs(maturity).startOf('day')
+          if (md.isAfter(today)) return rows
+          const close = findClosePrice(sorted, md)
+          if (close != null) rows.push({ date: maturity, closePrice: close })
+          return rows
+        }
+        const start = p.trade_start_date ? dayjs(p.trade_start_date).startOf('day') : null
+        for (const sp of sorted) {
+          const d = dayjs(sp.date).startOf('day')
+          if (d.isAfter(today)) continue
+          if (start && d.isBefore(start)) continue
+          rows.push({ date: sp.date, closePrice: sp.price })
+        }
+        return rows
+      }
+
       for (const pos of active) {
         const initialPrice = pos.initial_price
         if (initialPrice == null) continue
@@ -222,6 +274,18 @@ export default function ContractCheck() {
           }
         }
 
+        // 漏记敲入检查（雪球 + 凤凰，存续中且未标记敲入）：观察日收盘 ≤ 敲入障碍价
+        if (pos.status === 'active' && !pos.is_ki) {
+          const kiBarrier = pos.knock_in_barrier
+          if (kiBarrier != null && kiBarrier > 0) {
+            const kiPrice = initialPrice * kiBarrier
+            const hit = kiCloseSeries(pos, sortedPrices).find((c) => c.closePrice <= kiPrice)
+            if (hit) {
+              missed.push({ type: 'ki', position: pos, date: hit.date, barrier: kiBarrier * 100, barrierPrice: kiPrice, closePrice: hit.closePrice })
+            }
+          }
+        }
+
         // 派息检查（凤凰）
         if (pos.structure_type === 'phoenix') {
           const couponBarrier = pos.coupon_barrier
@@ -246,7 +310,7 @@ export default function ContractCheck() {
         }
       }
 
-      // 误记敲出 + 误记派息检查（遍历全部合约）
+      // 误记敲出 + 误记敲入 + 误记派息检查（遍历全部合约）
       for (const pos of all) {
         const initialPrice = pos.initial_price
         if (initialPrice == null) continue
@@ -287,6 +351,19 @@ export default function ContractCheck() {
 
             if (!anyMet && latestRef) {
               missed.push({ type: 'false_ko', position: pos, ...latestRef })
+            }
+          }
+        }
+
+        // 误记敲入：已敲入合约，但观察期内没有任何一日收盘 ≤ 敲入障碍价
+        if (pos.status === 'knocked_in') {
+          const kiBarrier = pos.knock_in_barrier
+          if (kiBarrier != null && kiBarrier > 0) {
+            const kiPrice = initialPrice * kiBarrier
+            const series = kiCloseSeries(pos, sortedPrices)
+            if (series.length > 0 && !series.some((c) => c.closePrice <= kiPrice)) {
+              const latest = series[series.length - 1]
+              missed.push({ type: 'false_ki', position: pos, date: latest.date, barrier: kiBarrier * 100, barrierPrice: kiPrice, closePrice: latest.closePrice })
             }
           }
         }
@@ -332,12 +409,16 @@ export default function ContractCheck() {
       } else {
         const koCount = missed.filter((m) => m.type === 'ko').length
         const cpCount = missed.filter((m) => m.type === 'coupon').length
+        const kiCount = missed.filter((m) => m.type === 'ki').length
         const fkoCount = missed.filter((m) => m.type === 'false_ko').length
+        const fkiCount = missed.filter((m) => m.type === 'false_ki').length
         const fcpCount = missed.filter((m) => m.type === 'false_coupon').length
         const parts: string[] = []
         if (koCount) parts.push(`${koCount} 个遗漏敲出`)
         if (cpCount) parts.push(`${cpCount} 个遗漏派息`)
+        if (kiCount) parts.push(`${kiCount} 个遗漏敲入`)
         if (fkoCount) parts.push(`${fkoCount} 个误记敲出`)
+        if (fkiCount) parts.push(`${fkiCount} 个误记敲入`)
         if (fcpCount) parts.push(`${fcpCount} 个误记派息`)
         message.warning(`发现 ${parts.join('、')}`)
       }
@@ -450,7 +531,7 @@ export default function ContractCheck() {
       render: (_: any, r: MissedItem) => (
         <span>
           <span style={{ fontSize: 11, opacity: 0.5, marginRight: 4 }}>
-            {r.type === 'ko' || r.type === 'false_ko' ? '敲出' : '派息'}
+            {r.type === 'ko' || r.type === 'false_ko' ? '敲出' : r.type === 'ki' || r.type === 'false_ki' ? '敲入' : '派息'}
           </span>
           {r.barrierPrice.toFixed(2)}
           <span style={{ fontSize: 11, opacity: 0.4, marginLeft: 4 }}>{r.barrier.toFixed(2)}%</span>
@@ -462,8 +543,10 @@ export default function ContractCheck() {
       dataIndex: 'closePrice',
       key: 'close',
       width: 95,
-      render: (v: number, _: any, r: MissedItem) => {
-        const isFalse = r.type === 'false_ko' || r.type === 'false_coupon'
+      // 注意 antd Table render 签名是 (value, record, index)：第二个参数才是行记录，
+      // 此前写成三参 (v, _, r) 导致 r 实际是 index，误记行的红色标注从未生效
+      render: (v: number, r: MissedItem) => {
+        const isFalse = r.type === 'false_ko' || r.type === 'false_ki' || r.type === 'false_coupon'
         return (
           <span style={{ color: isFalse ? '#ef4444' : '#22c55e', fontWeight: 600 }}>{v.toFixed(2)}</span>
         )
@@ -504,7 +587,9 @@ export default function ContractCheck() {
 
   const koResults = useMemo(() => results.filter((r) => r.type === 'ko'), [results])
   const couponResults = useMemo(() => results.filter((r) => r.type === 'coupon'), [results])
+  const kiResults = useMemo(() => results.filter((r) => r.type === 'ki'), [results])
   const falseKoResults = useMemo(() => results.filter((r) => r.type === 'false_ko'), [results])
+  const falseKiResults = useMemo(() => results.filter((r) => r.type === 'false_ki'), [results])
   const falseCouponResults = useMemo(() => results.filter((r) => r.type === 'false_coupon'), [results])
 
   const mutedText = isDark ? 'rgba(244,244,245,0.5)' : 'rgba(30,30,34,0.5)'
@@ -539,7 +624,7 @@ export default function ContractCheck() {
             description={
               <span style={{ color: mutedText }}>
                 点击「开始检查」扫描所有合约，<br />
-                自动比对历史价格与障碍价，发现遗漏/误记的敲出与派息信号
+                自动比对历史价格与障碍价，发现遗漏/误记的敲出、敲入与派息信号
               </span>
             }
           />
@@ -553,7 +638,7 @@ export default function ContractCheck() {
         <Card className="glass-card" variant="borderless">
           <Empty
             image={<ExclamationCircleOutlined style={{ fontSize: 48, color: '#22c55e' }} />}
-            description="所有合约状态正常，无遗漏或误记的敲出/派息信号"
+            description="所有合约状态正常，无遗漏或误记的敲出/敲入/派息信号"
           />
         </Card>
       ) : (
@@ -569,6 +654,23 @@ export default function ContractCheck() {
                 dataSource={koResults}
                 columns={columns}
                 rowKey={(r) => `ko-${r.position.id}-${r.date}`}
+                size="middle"
+                pagination={false}
+                scroll={{ x: 850 }}
+              />
+            </Card>
+          )}
+          {kiResults.length > 0 && (
+            <Card className="glass-card" variant="borderless" style={{ marginBottom: 16 }}>
+              <div style={{ marginBottom: 12, fontSize: 13, color: mutedText }}>
+                <Tag color="volcano" style={{ marginRight: 8 }}>遗漏敲入</Tag>
+                共 <span style={{ color: '#ef4444', fontWeight: 600 }}>{kiResults.length}</span> 条：
+                以下观察日标的价格跌破敲入障碍价但未标记敲入
+              </div>
+              <Table
+                dataSource={kiResults}
+                columns={columns}
+                rowKey={(r) => `ki-${r.position.id}-${r.date}`}
                 size="middle"
                 pagination={false}
                 scroll={{ x: 850 }}
@@ -603,6 +705,23 @@ export default function ContractCheck() {
                 dataSource={falseKoResults}
                 columns={columns}
                 rowKey={(r) => `fko-${r.position.id}-${r.date}`}
+                size="middle"
+                pagination={false}
+                scroll={{ x: 850 }}
+              />
+            </Card>
+          )}
+          {falseKiResults.length > 0 && (
+            <Card className="glass-card" variant="borderless" style={{ marginBottom: 16 }}>
+              <div style={{ marginBottom: 12, fontSize: 13, color: mutedText }}>
+                <Tag color="purple" style={{ marginRight: 8 }}>误记敲入</Tag>
+                共 <span style={{ color: '#ef4444', fontWeight: 600 }}>{falseKiResults.length}</span> 条：
+                以下合约已标记为敲入，但观察期内收盘价均未跌破敲入障碍价
+              </div>
+              <Table
+                dataSource={falseKiResults}
+                columns={columns}
+                rowKey={(r) => `fki-${r.position.id}-${r.date}`}
                 size="middle"
                 pagination={false}
                 scroll={{ x: 850 }}

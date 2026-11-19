@@ -273,7 +273,6 @@ struct PositionDetailView: View {
             if let price {
                 let kiPrice = position.initialPrice * position.knockInBarrier
                 let margin = Calc.safetyMargin(currentPrice: price, knockInPrice: kiPrice)
-                let pnl = Calc.pnl(position, currentPrice: price)
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(alignment: .firstTextBaseline) {
                         Text(String(format: "%.2f", price))
@@ -327,13 +326,6 @@ struct PositionDetailView: View {
                         }
                     }
                     Divider()
-                    if position.status == .knockedIn {
-                        LabeledContent("敲入浮亏") {
-                            Text(Format.pnlText(pnl.pnl))
-                                .foregroundStyle(Format.pnlColor(pnl.pnl))
-                                .monospacedDigit()
-                        }
-                    }
                     if position.structureType == .phoenix {
                         if let expected = Calc.estimateExpectedProfit(position) {
                             LabeledContent("预估派息") {

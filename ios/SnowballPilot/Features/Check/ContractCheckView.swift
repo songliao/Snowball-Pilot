@@ -15,8 +15,10 @@ struct ContractCheckView: View {
 
         enum Kind: String, CaseIterable {
             case missedKnockOut = "漏记敲出"
+            case missedKnockIn = "漏记敲入"
             case missedCoupon = "漏记派息"
             case falseKnockOut = "误记敲出"
+            case falseKnockIn = "误记敲入"
             case falseCoupon = "误记派息"
         }
     }
@@ -90,7 +92,7 @@ struct ContractCheckView: View {
         }
     }
 
-    // MARK: - 检查逻辑（与桌面端一致）
+    // MARK: - 检查逻辑（敲出/派息与桌面端一致，敲入为 iOS 扩展规则）
 
     private func run() async {
         running = true
@@ -116,6 +118,16 @@ struct ContractCheckView: View {
             let list = prices(code)
             if let exact = list.first(where: { $0.date == date }) { return exact.price }
             return list.last(where: { $0.date < date })?.price
+        }
+        /// 敲入观察日序列：每日观察取起息日以来每个行情日；到期观察仅合约到期日。
+        func knockInObservationDates(_ position: Position) -> [String] {
+            Calc.knockInObservationDates(
+                priceDates: prices(position.underlyingCode).map(\.date),
+                today: today,
+                observation: position.knockInObservation,
+                tradeStartDate: position.tradeStartDate,
+                knockOutDates: Calc.stringArray(position.knockOutDates)
+            )
         }
 
         for position in services.positions {
@@ -166,7 +178,58 @@ struct ContractCheckView: View {
                 }
             }
 
-            // 3) 误记敲出：已标记敲出，但没有任何观察日达标
+            // 3) 漏记敲入：存续中且未标记敲入，观察日收盘 ≤ 敲入障碍价
+            //    每日观察：起息日以来已入库的每个行情日都是观察日；到期观察：仅合约到期日（最后敲出观察日）
+            if position.status == .active, !position.isKi, initial > 0, position.knockInBarrier > 0 {
+                let kiPrice = initial * position.knockInBarrier
+                let dates = knockInObservationDates(position)
+                let hits = dates.compactMap { dateText -> (date: String, close: Double)? in
+                    guard let close = closePrice(position.underlyingCode, dateText),
+                          close <= kiPrice else { return nil }
+                    return (dateText, close)
+                }
+                if let hit = hits.first {
+                    result.append(Issue(
+                        id: "\(position.id)-mki",
+                        kind: .missedKnockIn,
+                        position: position,
+                        observationDate: hit.date,
+                        barrierPrice: kiPrice,
+                        barrierLabel: "敲入 \(String(format: "%.2f", kiPrice))（\(String(format: "%.2f", position.knockInBarrier * 100))%）",
+                        closePrice: hit.close
+                    ))
+                    maxPriceDate = max(maxPriceDate, latestDate(prices(position.underlyingCode), cap: hit.date) ?? "")
+                }
+            }
+
+            // 4) 误记敲入：已标记敲入，但观察期内没有任何一日收盘 ≤ 敲入障碍价
+            if position.status == .knockedIn, initial > 0, position.knockInBarrier > 0 {
+                let kiPrice = initial * position.knockInBarrier
+                let dates = knockInObservationDates(position)
+                var anyHit = false
+                var latestRef: (date: String, close: Double)?
+                for dateText in dates {
+                    guard let close = closePrice(position.underlyingCode, dateText) else { continue }
+                    if close <= kiPrice {
+                        anyHit = true
+                        break
+                    }
+                    latestRef = (dateText, close)
+                }
+                if !anyHit, let ref = latestRef {
+                    result.append(Issue(
+                        id: "\(position.id)-fki",
+                        kind: .falseKnockIn,
+                        position: position,
+                        observationDate: ref.date,
+                        barrierPrice: kiPrice,
+                        barrierLabel: "敲入 \(String(format: "%.2f", kiPrice))（\(String(format: "%.2f", position.knockInBarrier * 100))%）",
+                        closePrice: ref.close
+                    ))
+                }
+            }
+
+            // 5) 误记敲出：已标记敲出，但没有任何观察日达标
             if position.status == .knockedOut, initial > 0 {
                 let dates = Calc.stringArray(position.knockOutDates)
                 let barriers = Calc.numberArray(position.knockOutBarriers)
@@ -194,7 +257,7 @@ struct ContractCheckView: View {
                 }
             }
 
-            // 4) 误记派息：凤凰（不限状态），已登记派息的观察日收盘未达标
+            // 6) 误记派息：凤凰（不限状态），已登记派息的观察日收盘未达标
             if position.structureType == .phoenix, initial > 0, position.couponBarrier > 0 {
                 let dates = Calc.recordedCouponDates(position).sorted()
                 for (index, dateText) in dates.enumerated() where dateText <= today {
@@ -256,7 +319,7 @@ struct ContractCheckView: View {
                             Spacer()
                             Text("收盘 \(String(format: "%.2f", issue.closePrice))")
                                 .font(.caption.monospacedDigit())
-                                .foregroundStyle(issue.kind == .missedKnockOut || issue.kind == .missedCoupon ? .green : .red)
+                                .foregroundStyle(issue.kind.rawValue.hasPrefix("误记") ? .red : .green)
                         }
                         // 行内操作按钮用显式配色（不依赖 bordered/borderedProminent 的
                         // 系统渲染行为），保证图标与文字在任何系统版本下都与底色有对比。
@@ -313,7 +376,10 @@ struct ContractCheckView: View {
         lines.append("\(issue.barrierLabel)")
         lines.append("当日收盘：\(String(format: "%.2f", issue.closePrice))")
         lines.append("名义本金：\(Format.moneyFull(position.notional))")
-        if issue.kind == .missedCoupon || issue.kind == .falseCoupon {
+        if issue.kind == .missedKnockIn || issue.kind == .falseKnockIn {
+            let loss = position.notional * position.maxLossPct
+            lines.append("最大亏损 = \(Format.moneyFull(loss))（名义本金 × 最大亏损 \(Format.percent(position.maxLossPct))）")
+        } else if issue.kind == .missedCoupon || issue.kind == .falseCoupon {
             let amount = position.notional * position.couponRate * (1 - position.incomeDividendPct)
             lines.append("派息金额 = \(Format.moneyFull(amount))")
         } else {

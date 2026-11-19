@@ -340,9 +340,9 @@
       },
       "price": 5800,
       "output": {
-        "pnl": -133079.26044188,
-        "pnlRate": -6.65396302,
-        "type": "敲入浮亏"
+        "pnl": 0,
+        "pnlRate": 0,
+        "type": "敲入存续"
       }
     },
     {
@@ -638,24 +638,7 @@
         ]
       }
     ],
-    [
-      {
-        "id": 0,
-        "title": "中证1000雪球75-102",
-        "code": "000852.SH",
-        "structureType": "snowball",
-        "cur": 4600,
-        "reasons": [
-          {
-            "label": "已跌破敲入线",
-            "tone": "danger",
-            "date": "每日观察",
-            "level": 4660.08,
-            "gap": 1.30608696
-          }
-        ]
-      }
-    ]
+    []
   ],
   "csv": {
     "exportColumns": [

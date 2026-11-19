@@ -42,7 +42,7 @@ struct CalcCrossTests {
         }
     }
 
-    @Test("浮动盈亏与桌面端一致")
+    @Test("浮动盈亏与桌面端一致（已敲入不计算浮亏）")
     func pnl() {
         for (index, testCase) in fixtures.pnl.enumerated() {
             let actual = Calc.pnl(testCase.pos, currentPrice: testCase.price)

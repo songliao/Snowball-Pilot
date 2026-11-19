@@ -258,7 +258,8 @@ final class AppServices {
     }
 
     var summary: Summary {
-        let active = positions.filter { $0.status == .active }
+        // 已敲入仍是存续合约：保证金/名义本金/个数不受敲入状态影响（敲出/到期才算了结）
+        let active = positions.filter { $0.status == .active || $0.status == .knockedIn }
         let activeNotional = active.reduce(0) { $0 + $1.notional }
         let totalNotional = positions.reduce(0) { $0 + $1.notional }
         let activeMargin = active.reduce(0) { $0 + $1.notional * $1.marginRatio }

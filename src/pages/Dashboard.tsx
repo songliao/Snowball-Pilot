@@ -83,7 +83,8 @@ export default function Dashboard() {
     }
   }, [])
 
-  const activePositions = positions.filter((p) => p.status === 'active')
+  // 已敲入仍是存续合约：保证金/名义本金/个数不受敲入状态影响（敲出/到期才算了结）
+  const activePositions = positions.filter((p) => p.status === 'active' || p.status === 'knocked_in')
   const activeNotional = activePositions.reduce((sum, p) => sum + p.notional, 0)
   const totalNotional = positions.reduce((sum, p) => sum + p.notional, 0)
   const activeMargin = activePositions.reduce((sum, p) => sum + p.notional * ((p.margin_ratio ?? p.margin_rate) || 0), 0)

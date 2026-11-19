@@ -41,6 +41,20 @@ enum Calc {
         stringArray(raw).compactMap { AppDate.parse($0) }.filter { $0 >= today }.min()
     }
 
+    /// 敲入观察日序列（升序、≤ today，用于合约检查的漏记/误记敲入判定）：
+    /// - 每日观察：起息日（缺失则不限）以来已入库的每个行情日；
+    /// - 到期观察：仅合约到期日（最后一个敲出观察日）。
+    static func knockInObservationDates(priceDates: [String], today: String,
+                                        observation: String, tradeStartDate: String,
+                                        knockOutDates: [String]) -> [String] {
+        let dates = priceDates.filter { $0 <= today }
+        if observation == "maturity" {
+            guard let maturity = knockOutDates.last else { return [] }
+            return dates.filter { $0 == maturity }
+        }
+        return tradeStartDate.isEmpty ? dates : dates.filter { $0 >= tradeStartDate }
+    }
+
     /// 已派息观察日集合。兼容两种记录形态：
     /// a) 桌面端 / 新版 iOS 派息登记：`couponPaymentDates` 直接记录派息日，以其为准；
     /// b) 旧版 iOS 派息登记只写 `couponReceived`（按观察日索引、空串占位、不写
@@ -89,17 +103,14 @@ enum Calc {
         var type: String
     }
 
-    /// 浮动盈亏（口径与桌面端 calcPnL 完全一致）。
+    /// 浮动盈亏（口径与桌面端 calcPnL 一致）：已敲入仍属存续，不按现价估算浮亏。
     static func pnl(_ position: Position, currentPrice: Double?) -> PnLResult {
         switch position.status {
         case .knockedOut:
             return PnLResult(pnl: 0, pnlRate: 0, type: "已敲出")
         case .knockedIn:
-            if let currentPrice, currentPrice > 0, position.initialPrice > 0 {
-                let value = position.notional * (currentPrice / position.initialPrice - 1)
-                return PnLResult(pnl: value, pnlRate: value / position.notional * 100, type: "敲入浮亏")
-            }
-            return PnLResult(pnl: 0, pnlRate: 0, type: "敲入待估")
+            // 敲入后合约继续存续，最终盈亏取决于到期/敲出了结，不按现价估算浮亏
+            return PnLResult(pnl: 0, pnlRate: 0, type: "敲入存续")
         case .matured:
             if let currentPrice, currentPrice > 0, currentPrice < position.initialPrice, position.initialPrice > 0 {
                 let value = position.notional * (currentPrice / position.initialPrice - 1)

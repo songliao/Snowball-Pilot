@@ -386,15 +386,11 @@ struct PositionRow: View {
 
     @ViewBuilder
     private var payoffText: some View {
-        let pnl = Calc.pnl(position, currentPrice: latestPrice)
+        // 敲入浮亏不展示：已敲入仍是存续合约，盈亏等到期/敲出了结时才有定数
         if position.status != .active, position.terminationPayoff != 0 {
             Text("\(position.status == .knockedOut ? "敲出收益" : "了结收益") \(Format.pnlText(position.terminationPayoff))")
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(Format.pnlColor(position.terminationPayoff))
-        } else if pnl.type == "敲入浮亏" {
-            Text("敲入浮亏 \(Format.pnlText(pnl.pnl))")
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(Format.pnlColor(pnl.pnl))
         }
     }
 

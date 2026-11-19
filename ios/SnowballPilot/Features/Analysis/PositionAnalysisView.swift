@@ -16,8 +16,9 @@ struct PositionAnalysisView: View {
         var label: String { self == .point ? "价格点位" : "相对现价%" }
     }
 
+    /// 存续合约（含已敲入——敲入不影响存续属性，敲出/到期才算了结）。
     private var activePositions: [Position] {
-        services.positions.filter { $0.status == .active }
+        services.positions.filter { $0.status == .active || $0.status == .knockedIn }
     }
 
     var body: some View {

@@ -18,9 +18,9 @@ function structureLabel(t?: string): string {
   return (t && STRUCTURES[t]) || t || '未知结构'
 }
 
-/** 存续合约 */
+/** 存续合约（含已敲入——敲入不影响存续属性，敲出/到期才算了结） */
 function isActive(p: PositionData): boolean {
-  return p.status === 'active'
+  return p.status === 'active' || p.status === 'knocked_in'
 }
 
 /** 将对象按 key 聚合名义本金 */
