@@ -6,12 +6,14 @@ import {
 import {
   ArrowLeftOutlined, EditOutlined, SyncOutlined,
   WarningOutlined, DollarOutlined, ClockCircleOutlined, RollbackOutlined,
-  PlusOutlined, GiftOutlined, BarChartOutlined, ProfileOutlined, CheckOutlined
+  PlusOutlined, GiftOutlined, BarChartOutlined, ProfileOutlined, CheckOutlined,
+  CopyOutlined
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { usePositionStore } from '../stores/positionStore'
 import { useMarketStore } from '../stores/marketStore'
-import { computeKnockOutProfit } from '../utils/calc'
+import { computeKnockOutProfit, type PositionData } from '../utils/calc'
+import { makeContractText } from '../utils/contractParser'
 import { formatDate, STATUS_MAP } from '../utils/format'
 import PositionForm from './PositionForm'
 import PositionDiagram from '../components/PositionDiagram'
@@ -23,6 +25,25 @@ function parseJsonArray<T>(s: string | null | undefined): T[] {
     return Array.isArray(v) ? v : []
   } catch {
     return []
+  }
+}
+
+// 复制单笔合约为两端互通的要素文本：iOS / 桌面端各自的「导入交易」均可粘贴解析回填
+function copyContract(pos: PositionData) {
+  const text = makeContractText(pos)
+  // Electron 渲染层可能非安全上下文（navigator.clipboard 不可用），textarea + execCommand 兜底
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.style.position = 'fixed'
+  textarea.style.opacity = '0'
+  document.body.appendChild(textarea)
+  textarea.select()
+  const ok = document.execCommand('copy')
+  document.body.removeChild(textarea)
+  if (ok) {
+    message.success('已复制合约文本，可在另一端「导入交易」中粘贴')
+  } else {
+    message.error('复制失败，请手动复制')
   }
 }
 
@@ -420,6 +441,9 @@ export default function PositionDetail() {
           )}
           <Button className="action-btn" icon={<span className="nav-icon-circle nav-icon-circle--edit"><EditOutlined /></span>} onClick={() => navigate(`/positions/${pos.structure_type}/${pos.id}/edit`, { state: { from: `/positions/${pos.structure_type}/${pos.id}` } })}>
             编辑合约
+          </Button>
+          <Button className="action-btn" icon={<span className="nav-icon-circle nav-icon-circle--diagram"><CopyOutlined /></span>} onClick={() => copyContract(pos)}>
+            复制合约
           </Button>
         </Space>
       </div>

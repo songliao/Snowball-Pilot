@@ -1,6 +1,10 @@
 // 合约文本导入解析器
 // 将券商导出的雪球/凤凰合约文本（标准要素格式）自动识别并映射为持仓表单字段（snake_case，与 PositionForm 一致）。
 // 表单/数据库暂无对应控件的字段（交易类型、报价参数、希腊字母等）会收集进 warnings，由 UI 提示「已忽略」。
+// makeContractText 与 iOS 端 ContractParser.makeText 逐行同构：一端「复制合约」的文本，
+// 粘贴到另一端「导入交易」可完整回填（键名/顺序/数值格式保持一致）。
+
+import type { PositionData } from './calc'
 
 export interface ParsedContract {
   structureType: 'snowball' | 'phoenix' | 'airbag'
@@ -49,6 +53,7 @@ const INDEX_NAME_TO_CODE: Record<string, string> = {
 type ValueHandler = (raw: string) => unknown
 
 const SIMPLE_FIELDS: Record<string, { field: keyof ParsedContract; handle?: ValueHandler }> = {
+  产品名称: { field: 'product_name', handle: (v) => v.trim() }, // 与 iOS 端「复制合约」互通：空值也识别，显式置空产品名
   交易编号: { field: 'contract_no', handle: (v) => v.trim() },
   结构类型: { field: 'structureType', handle: (v) => deriveStructureType(v) },
   交易对手方: { field: 'broker', handle: (v) => v.trim() },
@@ -69,6 +74,8 @@ const SIMPLE_FIELDS: Record<string, { field: keyof ParsedContract; handle?: Valu
   计息规则: { field: 'accrual_basis', handle: (v) => mapAccrualBasis(v) },
   '计息结算T+': { field: 'accrual_settle_tplus', handle: (v) => toNumber(v) },
   '计息结算T': { field: 'accrual_settle_tplus', handle: (v) => toNumber(v) },
+  年化费用: { field: 'annual_fee_pct', handle: (v) => toPercent(v) }, // 与 iOS 端互通
+  收益分红: { field: 'income_dividend_pct', handle: (v) => toPercent(v) }, // 与 iOS 端互通
   红利票息: { field: 'maturity_coupon', handle: (v) => toPercent(v) },
   票息障碍价格: { field: 'coupon_barrier', handle: (v) => toPercent(v) }, // 凤凰派息障碍价格
   派息障碍价格: { field: 'coupon_barrier', handle: (v) => toPercent(v) }, // 凤凰派息障碍价格（标准要素用名）
@@ -211,8 +218,9 @@ export function parseContractText(text: string): ParsedContract {
     }
   }
 
-  // 结构类型派生后回填产品名称（若文本未提供销售部门/产品名）
-  if (!result.product_name) {
+  // 结构类型派生后回填产品名称（仅当文本未提供产品名称键时；
+  // 用 === undefined 判断，「产品名称：」显式空值（iOS 复制合约的置空写法）不会被兜底覆盖）
+  if (result.product_name === undefined) {
     // 用原始结构类型文本作为默认产品名，便于区分
     const m = text.match(/结构类型[：:]\s*(.+)/)
     if (m) result.product_name = m[1].trim()
@@ -220,4 +228,117 @@ export function parseContractText(text: string): ParsedContract {
 
   result.warnings = Array.from(unmapped)
   return result
+}
+
+// ——— 复制合约：持仓 → 要素文本（与 iOS ContractParser.makeText 逐行同构） ———
+
+// 兼容「字符串里嵌 JSON」的双重编码形态（与 calc.ts parseJsonField 一致）
+function parseJsonField(raw?: string): unknown {
+  let v: unknown = raw
+  for (let i = 0; i < 3; i++) {
+    if (typeof v === 'string') {
+      try { v = JSON.parse(v) } catch { break }
+    } else break
+  }
+  return v
+}
+
+function jsonStringArray(raw?: string): string[] {
+  const arr = parseJsonField(raw)
+  return Array.isArray(arr) ? arr.map((x) => (typeof x === 'string' ? x : String(x))) : []
+}
+
+function jsonNumberArray(raw?: string): number[] {
+  const arr = parseJsonField(raw)
+  if (!Array.isArray(arr)) return []
+  return arr
+    .map((x) => (typeof x === 'number' ? x : typeof x === 'string' ? Number(x) : NaN))
+    .filter((n) => Number.isFinite(n))
+}
+
+// 小数比例 → 百分数文本（0.156 → "15.6%"），4 位小数去尾零；parse 侧去 % 后 ÷100 还原
+function percentText(ratio: number | undefined): string {
+  let text = ((ratio ?? 0) * 100).toFixed(4)
+  if (text.includes('.')) {
+    text = text.replace(/0+$/, '').replace(/\.$/, '')
+  }
+  return text + '%'
+}
+
+// JS String(Number)：整数去小数点（100 → "100"），与 iOS 端 jsNumberString 一致
+function jsNum(n: number | undefined): string {
+  const value = n ?? 0
+  return Number.isInteger(value) && Math.abs(value) < 1e15 ? String(value) : String(value)
+}
+
+/**
+ * 持仓 → 要素文本，与 parseContractText 互逆（iOS 端粘贴导入可直接识别）：
+ * 键名取自 SIMPLE_FIELDS/LIST_FIELDS 映射表；比例字段导出为百分数文本（parse 侧去 % 后 ÷100 还原）；
+ * 序列字段导出为「键名：空值 + 逐行数据」；生命周期字段（敲入/了结状态、日期、收益、已收派息）不导出。
+ */
+export function makeContractText(pos: PositionData): string {
+  const lines: string[] = []
+  const structureLabel = pos.structure_type === 'phoenix' ? '凤凰' : '雪球'
+  // 产品名称始终导出（空值也带键名）：显式置空可避免 parse 侧「结构类型值兜底」错填产品名
+  lines.push(`产品名称：${pos.product_name || ''}`)
+  if (pos.contract_no) lines.push(`交易编号：${pos.contract_no}`)
+  lines.push(`结构类型：${structureLabel}`)
+  if (pos.broker) lines.push(`交易对手方：${pos.broker}`)
+  if (pos.underlying_code) lines.push(`挂钩标的：${pos.underlying_code}`)
+  if ((pos.notional ?? 0) > 0) lines.push(`名义本金：${jsNum(pos.notional)}`)
+  if (pos.trade_start_date) lines.push(`交易日期：${pos.trade_start_date}`)
+  if ((pos.initial_price ?? 0) > 0) lines.push(`期初价格：${jsNum(pos.initial_price)}`)
+  if ((pos.margin_ratio ?? 0) > 0) lines.push(`保证金比例：${percentText(pos.margin_ratio)}`)
+  if ((pos.max_loss_pct ?? 0) > 0) lines.push(`最大亏损比例：${percentText(pos.max_loss_pct)}`)
+
+  const koDates = jsonStringArray(pos.knock_out_dates)
+  if (koDates.length) {
+    lines.push('敲出观察日：')
+    lines.push(...koDates)
+  }
+  const koBarriers = jsonNumberArray(pos.knock_out_barriers)
+  if (koBarriers.length) {
+    lines.push('敲出障碍价格：')
+    lines.push(...koBarriers.map(jsNum))
+  }
+
+  // 敲入组为两结构共有字段，必须在结构分支之外导出（否则凤凰复制丢敲入参数，与 iOS 端同）
+  if ((pos.knock_in_barrier ?? 0) > 0) lines.push(`敲入障碍价格：${percentText(pos.knock_in_barrier)}`)
+  if (pos.knock_in_observation) lines.push(`敲入观察方式：${pos.knock_in_observation}`)
+  if ((pos.knock_in_strike ?? 0) > 0) lines.push(`敲入执行价格：${percentText(pos.knock_in_strike)}`)
+  if ((pos.knock_in_participation ?? 0) > 0) lines.push(`敲入参与率：${percentText(pos.knock_in_participation)}`)
+
+  if (pos.structure_type === 'phoenix') {
+    if ((pos.coupon_barrier ?? 0) > 0) lines.push(`派息障碍价格：${percentText(pos.coupon_barrier)}`)
+    if ((pos.coupon_rate ?? 0) > 0) lines.push(`派息率：${percentText(pos.coupon_rate)}`)
+    const cpDates = jsonStringArray(pos.coupon_dates)
+    if (cpDates.length) {
+      lines.push('派息观察日：')
+      lines.push(...cpDates)
+    }
+  } else {
+    const coupons = jsonNumberArray(pos.knock_out_coupons)
+    if (coupons.length) {
+      lines.push('敲出票息：')
+      lines.push(...coupons.map(jsNum))
+    }
+    if ((pos.maturity_coupon ?? 0) > 0) lines.push(`红利票息：${percentText(pos.maturity_coupon)}`)
+    if ((pos.knock_out_enhance_participation ?? 0) > 0) {
+      lines.push(`敲出增强参与率：${percentText(pos.knock_out_enhance_participation)}`)
+    }
+  }
+
+  if ((pos.rebate_annual_pct ?? 0) > 0) lines.push(`年化后端返息：${percentText(pos.rebate_annual_pct)}`)
+  if ((pos.rebate_absolute_back_pct ?? 0) > 0) lines.push(`绝对后端返息：${percentText(pos.rebate_absolute_back_pct)}`)
+  if ((pos.rebate_absolute_front_pct ?? 0) > 0) lines.push(`绝对前端返息：${percentText(pos.rebate_absolute_front_pct)}`)
+  if (pos.accrual_basis) lines.push(`计息规则：${pos.accrual_basis}`)
+  if ((pos.accrual_settle_tplus ?? 0) > 0) lines.push(`计息结算T+：${pos.accrual_settle_tplus}`)
+  if ((pos.abs_fee_pct ?? 0) > 0) lines.push(`交易佣金：${percentText(pos.abs_fee_pct)}`)
+  if ((pos.annual_fee_pct ?? 0) > 0) lines.push(`年化费用：${percentText(pos.annual_fee_pct)}`)
+  if ((pos.income_dividend_pct ?? 0) > 0) lines.push(`收益分红：${percentText(pos.income_dividend_pct)}`)
+  if (pos.notes) {
+    // 备注是单行键值对，多行备注折成一行（解析器按行取值）
+    lines.push(`备注信息：${pos.notes.replace(/\r?\n/g, ' ')}`)
+  }
+  return lines.join('\n')
 }

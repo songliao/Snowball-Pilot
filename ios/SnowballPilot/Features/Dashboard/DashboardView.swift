@@ -111,10 +111,18 @@ struct DashboardView: View {
                         sub: "共 \(summary.totalContracts) 只"
                     )
                     StatCard(
+                        title: "已敲入合约", icon: "arrow.down.right.circle.fill",
+                        main: Format.money(summary.knockedInNotional),
+                        sub: "保证金 \(Format.money(summary.knockedInMargin))"
+                    )
+                }
+                GridRow {
+                    StatCard(
                         title: "已了结收益", icon: "trophy.fill",
                         main: Format.money(summary.settledGain),
                         sub: "雪球 \(Format.money(summary.snowballSettledGain)) · 凤凰派息 \(Format.money(summary.phoenixCouponGain))"
                     )
+                    .gridCellColumns(2)
                 }
             }
         }

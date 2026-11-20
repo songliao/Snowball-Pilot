@@ -7,7 +7,8 @@ import {
   SnippetsOutlined,
   ReloadOutlined,
   TrophyOutlined,
-  ClockCircleOutlined
+  ClockCircleOutlined,
+  WarningOutlined
 } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { usePositionStore } from '../stores/positionStore'
@@ -91,6 +92,11 @@ export default function Dashboard() {
   const totalMargin = positions.reduce((sum, p) => sum + p.notional * ((p.margin_ratio ?? p.margin_rate) || 0), 0)
   const activeContracts = activePositions.length
   const totalContracts = positions.length
+
+  // 已敲入合约专项统计（敲入不影响存续口径，此卡单独呈现其名义本金与保证金）
+  const knockedInPositions = positions.filter((p) => p.status === 'knocked_in')
+  const knockedInNotional = knockedInPositions.reduce((sum, p) => sum + (p.notional ?? 0), 0)
+  const knockedInMargin = knockedInPositions.reduce((sum, p) => sum + (p.notional ?? 0) * ((p.margin_ratio ?? p.margin_rate) || 0), 0)
 
   // 已了结收益 = 雪球了结收益 + 凤凰派息收益 + 凤凰了结收益
   const isSettled = (p: PositionData) => p.status === 'knocked_out' || p.status === 'matured'
@@ -388,6 +394,27 @@ export default function Dashboard() {
                 </div>
               </div>
               <div className="stat-icon"><TrophyOutlined /></div>
+            </div>
+          </Card>
+        </Col>
+      </Row>
+
+      {/* 已敲入合约：单独呈现名义本金与保证金合计（敲入不影响上方存续口径） */}
+      <Row gutter={[12, 12]} style={{ marginBottom: 20 }} align="stretch">
+        <Col span={24}>
+          <Card className="stat-card glass-card" variant="borderless" style={{ height: '100%' }}>
+            <div className="stat-card-inner">
+              <div>
+                <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 4 }}>已敲入合约</div>
+                <div style={{ fontSize: 20, fontWeight: 600, lineHeight: 1.15, whiteSpace: 'nowrap' }}>
+                  名义本金 {formatMoney(knockedInNotional)}
+                  <span style={{ fontSize: 13, opacity: 0.6, fontWeight: 400 }}>（{knockedInPositions.length} 只）</span>
+                </div>
+                <div style={{ fontSize: 12, opacity: 0.45, fontWeight: 400, marginTop: 2, whiteSpace: 'nowrap' }}>
+                  保证金 {formatMoney(knockedInMargin)}
+                </div>
+              </div>
+              <div className="stat-icon"><WarningOutlined /></div>
             </div>
           </Card>
         </Col>

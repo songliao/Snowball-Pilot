@@ -251,6 +251,8 @@ final class AppServices {
         var totalMargin: Double
         var activeContracts: Int
         var totalContracts: Int
+        var knockedInNotional: Double
+        var knockedInMargin: Double
         var settledGain: Double
         var snowballSettledGain: Double
         var phoenixSettledGain: Double
@@ -260,10 +262,13 @@ final class AppServices {
     var summary: Summary {
         // 已敲入仍是存续合约：保证金/名义本金/个数不受敲入状态影响（敲出/到期才算了结）
         let active = positions.filter { $0.status == .active || $0.status == .knockedIn }
+        let knockedIn = positions.filter { $0.status == .knockedIn }
         let activeNotional = active.reduce(0) { $0 + $1.notional }
         let totalNotional = positions.reduce(0) { $0 + $1.notional }
         let activeMargin = active.reduce(0) { $0 + $1.notional * $1.marginRatio }
         let totalMargin = positions.reduce(0) { $0 + $1.notional * $1.marginRatio }
+        let knockedInNotional = knockedIn.reduce(0) { $0 + $1.notional }
+        let knockedInMargin = knockedIn.reduce(0) { $0 + $1.notional * $1.marginRatio }
 
         let isSettled = { (p: Position) in p.status == .knockedOut || p.status == .matured }
         let snowballSettled = positions
@@ -282,6 +287,8 @@ final class AppServices {
             totalMargin: totalMargin,
             activeContracts: active.count,
             totalContracts: positions.count,
+            knockedInNotional: knockedInNotional,
+            knockedInMargin: knockedInMargin,
             settledGain: snowballSettled + phoenixSettled + phoenixCoupons,
             snowballSettledGain: snowballSettled,
             phoenixSettledGain: phoenixSettled,
