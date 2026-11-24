@@ -12,7 +12,6 @@ on:
 
 permissions:
   contents: read
-  actions: read
   pages: write
   id-token: write
 
@@ -22,37 +21,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # 上传与部署分属两个 job：同 job 内上传后立刻部署会撞上 GitHub 的
+  # artifact 内部 API 延迟，deploy-pages 查不到刚上传的 github-pages（actions/deploy-pages#451）
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
   deploy:
+    needs: build
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/configure-pages@v5
-
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: docs
-
-      # upload-artifact 成功后，deploy-pages 立即查 artifact 偶发读不到（API 最终一致性）。
-      # 轮询等到 artifact 在 API 可见再部署，避免 "No artifacts named github-pages" 假失败。
-      - name: Wait for artifact to be visible
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          for i in $(seq 1 12); do
-            if gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" \
-                --jq '.artifacts[].name' | grep -qx 'github-pages'; then
-              echo "artifact github-pages is visible"
-              exit 0
-            fi
-            echo "waiting for artifact ($i/12)..."
-            sleep 5
-          done
-          echo "artifact github-pages did not become visible" >&2
-          exit 1
-
       - id: deployment
         uses: actions/deploy-pages@v4
