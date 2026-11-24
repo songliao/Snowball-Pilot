@@ -10,7 +10,7 @@
     />
     <meta property="og:title" content="Snowball Pilot · 场外雪球、凤凰合约的持仓管理工具" />
     <meta property="og:description" content="盯市、预警、事件跟踪、事后对账，一处搞定。数据完全存在本地。" />
-    <meta property="og:image" content="screenshots/snowball-pilot-overview.png" />
+    <meta property="og:image" content="favicon.png" />
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f4f6fa" />
     <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0a101f" />
     <title>Snowball Pilot · 场外雪球、凤凰合约的持仓管理工具</title>
@@ -119,7 +119,7 @@
           <div class="ai-md download-readme-intro">
             <h2>这是什么</h2>
             <p>
-              你手上管着几十笔场外合约——雪球、凤凰。它们的条款各不相同：什么时候敲出、敲出线在哪、什么时候派息、派息线在哪、保证金留多少。
+              你手上管着几十笔场外合约——雪球、凤凰。它们的条款各不相同：什么时候敲出、敲出线在哪、什么时候派息、派息线在哪、什么时候敲入、保证金留多少。
             </p>
             <p>这些条款一旦记错、漏记一次观察日，损失就是真金白银。</p>
             <p>
@@ -132,185 +132,150 @@
             </ul>
           </div>
 
-          <div class="fc" id="feature-carousel" tabindex="0" role="group" aria-roledescription="轮播" aria-label="主要功能">
-            <div class="fc-head">
-              <div class="fc-head-text">
-                <h3 class="fc-title"></h3>
-                <p class="fc-tagline"></p>
+          <div class="feature-grid">
+            <section class="feature-card">
+              <div class="feature-card-head">
+                <span class="feature-no">01</span>
+                <div>
+                  <h3>投资总览</h3>
+                  <p>今天打开第一眼</p>
+                </div>
               </div>
-              <span class="fc-count"
-                ><span class="fc-count-cur">01</span><span class="fc-count-sep">/</span><span class="fc-count-total">09</span></span
-              >
-            </div>
-
-            <div class="fc-viewport">
-              <article class="fc-slide" data-title="投资总览" data-tagline="今天打开第一眼" role="group" aria-roledescription="幻灯片" aria-label="第 1 页，共 9 页">
-                <div class="fc-shift">
-                  <figure class="fc-figure">
-                    <img src="screenshots/snowball-pilot-overview.png" alt="投资总览界面截图" draggable="false" decoding="async" loading="lazy" />
-                    <figcaption>演示数据</figcaption>
-                  </figure>
-                  <div class="ai-md fc-body">
-                    <p>四张卡：名义本金、保证金、合约数、已了结收益。每张都分「存续中」和「累计」，一眼看出当前敞口和历史赚亏。</p>
-                    <p>下面是四大宽基指数的实时行情和涨跌幅，可以设置 10 秒到 5 分钟自动刷新。</p>
-                    <p><strong>预警看板</strong>：所有快要出事——快敲出、快派息、快敲入——的合约都排在上面，鼠标点进去直接看详情。不用自己翻。</p>
-                  </div>
-                </div>
-              </article>
-
-              <article class="fc-slide" data-title="事件日历" data-tagline="今天是几号，该看哪几笔" role="group" aria-roledescription="幻灯片" aria-label="第 2 页，共 9 页">
-                <div class="fc-shift">
-                  <figure class="fc-figure">
-                    <img src="screenshots/snowball-pilot-calendar.png" alt="事件日历界面截图" draggable="false" decoding="async" loading="lazy" />
-                    <figcaption>演示数据</figcaption>
-                  </figure>
-                  <div class="ai-md fc-body">
-                    <p>月历上直接标出全部合约的关键日子：绿色 = 敲出观察日，蓝色 = 派息观察日。</p>
-                    <p>每个事件都写着标的、合约编号、障碍价。点一下跳到持仓详情。</p>
-                    <p>早上打开日历，今天要盯什么一目了然。</p>
-                  </div>
-                </div>
-              </article>
-
-              <article class="fc-slide" data-title="持仓管理" data-tagline="所有合约一张表" role="group" aria-roledescription="幻灯片" aria-label="第 3 页，共 9 页">
-                <div class="fc-shift">
-                  <figure class="fc-figure">
-                    <img src="screenshots/snowball-pilot-positions.png" alt="持仓管理界面截图" draggable="false" decoding="async" loading="lazy" />
-                    <figcaption>演示数据</figcaption>
-                  </figure>
-                  <div class="ai-md fc-body">
-                    <p>按需排序，默认只显示存续中的，随时切到含已了结的全部。</p>
-                    <p>每笔合约实时显示：当前价、下一个敲出日是哪天、那天要看什么价位、<strong>安全垫还有多少</strong>、现在赚还是亏。</p>
-                    <p>
-                      <strong>安全垫</strong>是最该盯的数——现价离敲入线还有多少空间。快归零了，价格再跌一点就敲入，20% 保证金限亏就锁死了。
-                    </p>
-                  </div>
-                </div>
-              </article>
-
-              <article class="fc-slide" data-title="合约录入与跟踪" data-tagline="录进去，之后全自动" role="group" aria-roledescription="幻灯片" aria-label="第 4 页，共 9 页">
-                <div class="fc-shift">
-                  <figure class="fc-figure">
-                    <img src="screenshots/snowball-pilot-entry.png" alt="合约录入与跟踪界面截图" draggable="false" decoding="async" loading="lazy" />
-                    <figcaption>演示数据</figcaption>
-                  </figure>
-                  <div class="ai-md fc-body">
-                    <p>
-                      <strong>两种录入方式</strong>：<strong>填表</strong>——雪球和凤凰各一套表单，按结构只显示该结构的条款；<strong>粘贴导入</strong>——把券商发来的合约要素文本直接粘进去，自动识别是雪球还是凤凰，自动拆分敲出日和障碍价、敲入条款、保证金、返息费用，识别不了的字段会明确提示「已忽略」，不会悄悄丢掉。
-                    </p>
-                    <p>
-                      <strong>管得动的条款</strong>：敲出（观察日、障碍价、票息、敲出增强参与率、到期票息）、敲入（观察方式、敲入线、执行价、参与率）、保证金比例、最大亏损比例、凤凰派息、费用返息。
-                    </p>
-                    <p>
-                      <strong>状态流转</strong>：标记敲入、登记敲出、登记到期自动算收益、凤凰派息登记；改错了随时能改能撤销，不会留错记录。
-                    </p>
-                  </div>
-                </div>
-              </article>
-
-              <article class="fc-slide" data-title="持仓详情" data-tagline="点位图示与收益测算一目了然" role="group" aria-roledescription="幻灯片" aria-label="第 5 页，共 9 页">
-                <div class="fc-shift">
-                  <figure class="fc-figure">
-                    <img src="screenshots/snowball-pilot-position-detail.png" alt="持仓详情界面截图" draggable="false" decoding="async" loading="lazy" />
-                    <figcaption>演示数据</figcaption>
-                  </figure>
-                  <div class="ai-md fc-body">
-                    <p><strong>敲出观察、敲出收益估算、敲入预警</strong>三张卡片，持仓风险与预期收益测算一看便知。</p>
-                    <p>
-                      <strong>实时点位图示</strong>：期初价、敲入线、敲出障碍、派息线、当前价画在同一张图上。安全垫多厚、离下一道障碍还有多远，不用算，看图就知道。
-                    </p>
-                  </div>
-                </div>
-              </article>
-
-              <article class="fc-slide" data-title="持仓分析" data-tagline="风险在哪" role="group" aria-roledescription="幻灯片" aria-label="第 6 页，共 9 页">
-                <div class="fc-shift">
-                  <figure class="fc-figure">
-                    <img src="screenshots/snowball-pilot-analysis.png" alt="持仓分析界面截图" draggable="false" decoding="async" loading="lazy" />
-                    <figcaption>演示数据</figcaption>
-                  </figure>
-                  <div class="ai-md fc-body">
-                    <ul>
-                      <li><strong>按标的环形图</strong>：本金压在哪个标的上，有没有过度集中</li>
-                      <li><strong>按结构环形图</strong>：雪球和凤凰各占多少</li>
-                      <li>
-                        <strong>风险散点图</strong>：横轴安全垫，纵轴本金规模。<strong>越靠右下越危险</strong>——安全垫薄、规模又大，那几笔就是真正要盯的。点一下直达详情
-                      </li>
-                    </ul>
-                  </div>
-                </div>
-              </article>
-
-              <article class="fc-slide" data-title="合约检查" data-tagline="专门抓你记错的地方" role="group" aria-roledescription="幻灯片" aria-label="第 7 页，共 9 页">
-                <div class="fc-shift">
-                  <figure class="fc-figure">
-                    <img src="screenshots/snowball-pilot-check.png" alt="合约检查界面截图" draggable="false" decoding="async" loading="lazy" />
-                    <figcaption>演示数据</figcaption>
-                  </figure>
-                  <div class="ai-md fc-body">
-                    <p>
-                      拿历史行情和合约条款自动对账，查出四类问题：<strong>漏记敲出</strong>（价格够敲出线但你没记）、<strong>漏记派息</strong>、<strong>误记敲出</strong>（记了但那天没到线）、<strong>误记派息</strong>。
-                    </p>
-                    <p>每一笔都列出日期、障碍价、当天实际收盘价、差多少，点进去就能改。</p>
-                    <p>
-                      这是<strong>事后对账工具</strong>——用来补漏和纠错，不是每天要看的东西，但出问题时它能直接告诉你问题在哪。
-                    </p>
-                  </div>
-                </div>
-              </article>
-
-              <article class="fc-slide" data-title="标的管理" data-tagline="行情数据维护" role="group" aria-roledescription="幻灯片" aria-label="第 8 页，共 9 页">
-                <div class="fc-shift">
-                  <figure class="fc-figure">
-                    <img src="screenshots/snowball-pilot-underlyings.png" alt="标的管理界面截图" draggable="false" decoding="async" loading="lazy" />
-                    <figcaption>演示数据</figcaption>
-                  </figure>
-                  <div class="ai-md fc-body">
-                    <ul>
-                      <li>加删你要跟踪的指数 / 标的</li>
-                      <li>每个标的的最新价、日/周/月/年涨跌（自动按区间高低点着色）</li>
-                      <li><strong>K 线图</strong>，看历史走势随时切换</li>
-                      <li><strong>标的回溯</strong>：拉近两年历史数据，新增标的第一天就自动补全</li>
-                    </ul>
-                  </div>
-                </div>
-              </article>
-
-              <article class="fc-slide" data-title="预警设置" data-tagline="提前量由你定" role="group" aria-roledescription="幻灯片" aria-label="第 9 页，共 9 页">
-                <div class="fc-shift">
-                  <figure class="fc-figure">
-                    <img src="screenshots/snowball-pilot-alerts.png" alt="预警设置界面截图" draggable="false" decoding="async" loading="lazy" />
-                    <figcaption>演示数据</figcaption>
-                  </figure>
-                  <div class="ai-md fc-body">
-                    <p>四个阈值自己调：敲出提前几天开始提示、离敲出线多近提示、离派息线多近提示、离敲入线多近提示。</p>
-                    <p><strong>改参数时立刻能看到当前会触发哪些合约</strong>，不用等。设好了打开桌面通知，到点主动弹窗。</p>
-                  </div>
-                </div>
-              </article>
-            </div>
-
-            <div class="fc-controls">
-              <button class="fc-arrow" type="button" data-step="-1" aria-label="上一个功能">
-                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true">
-                  <path d="M14.5 5.5 8 12l6.5 6.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
-                </svg>
-              </button>
-              <div class="fc-rail">
-                <!-- 分段按钮由 site.js 按 slides 数量生成 -->
+              <div class="ai-md feature-body">
+                <p>四张卡：名义本金、保证金、合约数、已了结收益，各分「存续中」与「累计」，当前敞口和历史赚亏一眼看出。</p>
+                <p>新增<strong>「已敲入合约」卡片</strong>，单独汇总已敲入合约的名义本金与保证金。已敲入仍算存续，不因敲入而减少敞口，也不按现价估算浮亏。</p>
+                <p>四大宽基指数实时行情与涨跌幅，10 秒到 5 分钟可调自动刷新。</p>
+                <p><strong>预警看板</strong>把快敲出、快派息、快敲入的合约排在前面，点进去直接看详情；已敲入合约不再重复报敲入预警。</p>
               </div>
-              <button class="fc-arrow" type="button" data-step="1" aria-label="下一个功能">
-                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true">
-                  <path d="M9.5 5.5 16 12l-6.5 6.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
-                </svg>
-              </button>
-            </div>
+            </section>
+
+            <section class="feature-card">
+              <div class="feature-card-head">
+                <span class="feature-no">02</span>
+                <div>
+                  <h3>事件日历</h3>
+                  <p>今天是几号，该看哪几笔</p>
+                </div>
+              </div>
+              <div class="ai-md feature-body">
+                <p>月历上直接标出全部合约的关键日子：绿色 = 敲出观察日，蓝色 = 派息观察日。</p>
+                <p>每个事件都写着标的、合约编号、障碍价，点一下跳到持仓详情。</p>
+                <p>早上打开日历，今天要盯什么一目了然。</p>
+              </div>
+            </section>
+
+            <section class="feature-card">
+              <div class="feature-card-head">
+                <span class="feature-no">03</span>
+                <div>
+                  <h3>持仓管理</h3>
+                  <p>所有合约一张表</p>
+                </div>
+              </div>
+              <div class="ai-md feature-body">
+                <p>按需排序，默认只显示存续中，可切到含已了结的全部；默认按事件早晚排。</p>
+                <p>每笔实时显示现价、下一敲出日、敲出距离、敲入距离、派息距离与赚亏。</p>
+                <p><strong>距离 = 1 − 障碍价 ÷ 现价</strong>，正绿负红、点列头排序。离敲入线越近越危险；已敲入合约不再显示敲入浮亏，但仍留在存续口径里。</p>
+              </div>
+            </section>
+
+            <section class="feature-card">
+              <div class="feature-card-head">
+                <span class="feature-no">04</span>
+                <div>
+                  <h3>合约录入与跟踪</h3>
+                  <p>录进去，之后全自动</p>
+                </div>
+              </div>
+              <div class="ai-md feature-body">
+                <p><strong>两种录入</strong>：填表（雪球、凤凰各一套表单，只显示该结构条款）；粘贴导入（券商要素文本自动识别结构，拆出敲出日与障碍价、敲入、保证金、返息，识别不了的字段明确提示「已忽略」）。</p>
+                <p><strong>两端互通</strong>：详情页「复制合约」生成的文本，可在另一端（桌面 ↔ iOS）「导入交易」粘贴完整回填。</p>
+                <p><strong>条款覆盖</strong>：敲出、敲入、保证金比例与最大亏损、凤凰派息、费用返息。</p>
+                <p><strong>状态流转</strong>：标记敲入（带日期）、登记敲出、登记到期自动算收益、凤凰派息登记；改错随时改、随时撤销。</p>
+              </div>
+            </section>
+
+            <section class="feature-card">
+              <div class="feature-card-head">
+                <span class="feature-no">05</span>
+                <div>
+                  <h3>持仓详情</h3>
+                  <p>点位与收益一看便知</p>
+                </div>
+              </div>
+              <div class="ai-md feature-body">
+                <p>敲出观察、敲出收益估算、敲入预警三张卡，风险与预期收益一目了然。</p>
+                <p><strong>实时点位图</strong>把期初价、敲入线、敲出障碍、派息线、当前价画在同一张图上，安全垫厚度不用算。</p>
+                <p>凤凰派息障碍同时显示价格与百分比；票息、派息率固定 4 位小数完整展示。</p>
+              </div>
+            </section>
+
+            <section class="feature-card">
+              <div class="feature-card-head">
+                <span class="feature-no">06</span>
+                <div>
+                  <h3>持仓分析</h3>
+                  <p>风险在哪</p>
+                </div>
+              </div>
+              <div class="ai-md feature-body">
+                <p><strong>按标的环形图</strong>看本金是否过度集中；<strong>按结构环形图</strong>看雪球与凤凰占比。</p>
+                <p><strong>风险散点图</strong>：横轴安全垫、纵轴本金规模，越靠右下越危险——安全垫薄、规模又大的那几笔就是真正要盯的，点一下直达详情。</p>
+                <p>已敲入合约仍计入统计。</p>
+              </div>
+            </section>
+
+            <section class="feature-card">
+              <div class="feature-card-head">
+                <span class="feature-no">07</span>
+                <div>
+                  <h3>合约检查</h3>
+                  <p>专门抓你记错的地方</p>
+                </div>
+              </div>
+              <div class="ai-md feature-body">
+                <p>拿历史行情与条款自动对账，七类问题一网打尽：<strong>漏记敲出、漏记敲入、漏记派息、误记敲出、误记敲入、误记派息、敲入日期不符</strong>。</p>
+                <p>漏记敲入 = 观察日收盘跌破敲入线却没标记；敲入日期不符 = 标记日期与实际跌破日对不上（到期观察只认到期日）。</p>
+                <p>每笔列出日期、障碍价、当日收盘价、差多少，点进去就能改；「添加备注」自动预填最大亏损。</p>
+                <p>这是<strong>事后对账工具</strong>，出问题时直接告诉你问题在哪。</p>
+              </div>
+            </section>
+
+            <section class="feature-card">
+              <div class="feature-card-head">
+                <span class="feature-no">08</span>
+                <div>
+                  <h3>标的管理</h3>
+                  <p>行情数据维护</p>
+                </div>
+              </div>
+              <div class="ai-md feature-body">
+                <p>加删要跟踪的指数 / 标的；最新价与日 / 周 / 月 / 年涨跌按区间高低点着色。</p>
+                <p><strong>K 线图</strong>看历史走势随时切换；<strong>标的回溯</strong>拉近两年数据，新增标的第一天自动补全。</p>
+              </div>
+            </section>
+
+            <section class="feature-card">
+              <div class="feature-card-head">
+                <span class="feature-no">09</span>
+                <div>
+                  <h3>预警设置</h3>
+                  <p>提前量由你定</p>
+                </div>
+              </div>
+              <div class="ai-md feature-body">
+                <p>四个阈值自己调：敲出提前几天、离敲出线多近、离派息线多近、离敲入线多近。</p>
+                <p>改参数时立刻看到当前会触发哪些合约；打开桌面通知，到点主动弹窗。</p>
+                <p>已敲入合约不再重复报敲入预警，敲出 / 派息预警照常。</p>
+              </div>
+            </section>
           </div>
 
           <div class="ai-md download-readme-notes">
             <h2>还需要知道的</h2>
             <ul>
               <li><strong>免登录</strong>：桌面版与 iOS 版都不需要注册登录，打开即进主界面</li>
+              <li><strong>两端互通</strong>：合约文本单笔复制、粘贴双向回填；CSV 导入导出口径一致</li>
               <li><strong>自动更新</strong>：桌面版新版本自动下载安装，不用手动升级；iOS 版随 TestFlight 更新</li>
               <li><strong>离线可用</strong>：历史行情存在本地，断网时合约检查、持仓分析、日历照常用</li>
               <li><strong>界面</strong>：明暗两套主题，随时切换</li>

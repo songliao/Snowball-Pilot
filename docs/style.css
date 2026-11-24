@@ -253,375 +253,64 @@ a {
   border-top: 1px solid var(--line);
 }
 
-/* ========== 功能轮播 ========== */
-.fc {
-  /* 滑行：中段保持速度，两端柔和。原来的 (0.22,1,0.36,1) 在 25% 时间里
-     就走完 75% 位移，观感是「瞬移到位」而非滑动 */
-  --fc-move: cubic-bezier(0.4, 0, 0.2, 1);
-  --fc-fade: cubic-bezier(0.4, 0, 0.6, 1);
-  --fc-ease: cubic-bezier(0.22, 0.68, 0.24, 1); /* 悬停、气泡等微交互 */
-  --fc-dir: 1;
-  --fc-drag: 0px;
-  --fc-autoplay: 3000ms;
-  position: relative;
+/* ========== 功能卡片网格（无截图） ========== */
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
   margin-top: 16px;
-  padding: 18px 20px 14px;
+}
+
+.feature-card {
+  padding: 14px 16px 15px;
+  border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--line-soft);
-  outline: none;
-  touch-action: pan-y;
-  transition: box-shadow 0.25s var(--fc-ease);
-}
-
-.fc:focus-visible {
-  box-shadow: var(--ring);
-}
-
-/* 头部：标题 + 计数 */
-.fc-head {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-}
-
-.fc-head-text {
   min-width: 0;
 }
 
-.fc-title {
+.feature-card-head {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  margin-bottom: 9px;
+}
+
+.feature-no {
+  flex: none;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.feature-card h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 700;
   letter-spacing: -0.01em;
   color: var(--text-strong);
 }
 
-.fc-tagline {
-  margin: 3px 0 0;
+.feature-card-head p {
+  margin: 2px 0 0;
   color: var(--text-3);
+  font-size: 12px;
+}
+
+.feature-body {
   font-size: 12.5px;
+  gap: 7px;
 }
 
-.fc-count {
-  margin-left: auto;
-  flex: none;
-  padding: 2px 9px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--card-bg);
-  color: var(--text-4);
-  font-size: 11.5px;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.02em;
-  line-height: 1.5;
-}
-
-.fc-count-sep {
-  margin: 0 3px;
-  opacity: 0.55;
-}
-
-/* 舞台：绝对定位叠放，高度由 JS 恒定为最高页。
-   overflow 裁掉滑入/滑出时越过边界的部分 */
-.fc-viewport {
-  position: relative;
-  margin-top: 14px;
-  overflow: hidden;
-}
-
-/* 外层：淡入淡出 + 拖拽跟手 */
-.fc-slide {
-  position: absolute;
-  inset: 0 0 auto 0;
-  opacity: 0;
-  visibility: hidden;
-  transform: translate3d(var(--fc-drag), 0, 0);
-  transition:
-    opacity 0.24s var(--fc-fade),
-    transform 0.28s var(--fc-fade),
-    visibility 0s 0.62s;
-}
-
-/* 淡入必须早于位移完成，否则元素「快到位了才显形」，观感仍是跳 */
-.fc-slide.is-active {
-  opacity: 1;
-  visibility: visible;
-  transition:
-    opacity 0.3s linear,
-    transform 0.28s var(--fc-fade),
-    visibility 0s;
-}
-
-/* 内层：方向性整推。必须用 animation 而非 transition —— transition 的起点
-   永远是上一帧的计算值，而上一帧的 --fc-dir 还是旧值；连续前进几页后再往回
-   跳，入场方向就会反。关键帧在动画启动时求值，拿到的才是新的 --fc-dir。 */
-.fc-shift {
-  transform: none;
-}
-
-@keyframes fc-shift-in {
-  from {
-    transform: translate3d(calc(var(--fc-dir) * 22%), 0, 0);
-  }
-  to {
-    transform: none;
-  }
-}
-
-@keyframes fc-shift-out {
-  from {
-    transform: none;
-  }
-  to {
-    transform: translate3d(calc(var(--fc-dir) * -22%), 0, 0);
-  }
-}
-
-.fc-slide.is-leaving .fc-shift {
-  animation: fc-shift-out 0.62s var(--fc-move) both;
-}
-
-/* 必须排在 is-leaving 之后：同一页可能同时残留 is-leaving */
-.fc-slide.is-active .fc-shift {
-  animation: fc-shift-in 0.62s var(--fc-move) both;
-}
-
-.fc.is-dragging .fc-slide {
-  transition: none;
-}
-
-.fc-figure {
-  position: relative;
-  margin: 0;
-  padding: 5px;
-  border: 1px solid var(--line);
-  border-radius: 11px;
-  background: var(--card-bg);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
-}
-
-.fc-figure img {
-  display: block;
-  width: 100%;
-  border-radius: 7px;
-  background: var(--card-bg);
-  user-select: none;
-  -webkit-user-drag: none;
-}
-
-.fc-figure figcaption {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  padding: 1px 7px;
-  border-radius: 999px;
-  background: rgba(15, 23, 42, 0.42);
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 10px;
-  line-height: 1.7;
-  letter-spacing: 0.02em;
-  pointer-events: none;
-}
-
-.fc-body {
-  margin-top: 14px;
-}
-
-.fc-body > :first-child {
+.feature-body > :first-child {
   margin-top: 0;
 }
 
-/* 控制条：箭头 + 进度分段 */
-.fc-controls {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 16px;
-  padding-top: 14px;
-  border-top: 1px solid var(--line);
-}
-
-.fc-arrow {
-  flex: none;
-  width: 30px;
-  height: 30px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text-3);
-  cursor: pointer;
-  transition:
-    color 0.18s var(--fc-ease),
-    background 0.18s var(--fc-ease),
-    border-color 0.18s var(--fc-ease),
-    transform 0.18s var(--fc-ease);
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .fc-arrow:hover {
-    color: var(--primary);
-    background: var(--accent-soft);
-    border-color: var(--accent-border);
-  }
-}
-
-.fc-arrow:active {
-  transform: scale(0.94);
-}
-
-.fc-rail {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.fc-seg {
-  position: relative;
-  flex: 1 1 0;
-  min-width: 0;
-  height: 18px;
-  padding: 0;
-  border: none;
-  background: none;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.fc-seg::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
-  height: 3px;
-  margin-top: -1.5px;
-  border-radius: 999px;
-  background: var(--line-strong);
-  transition: background 0.22s var(--fc-ease);
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .fc-seg:hover::before {
-    background: var(--text-4);
-  }
-}
-
-.fc-seg.is-active::before {
-  background: color-mix(in srgb, var(--primary) 22%, transparent);
-}
-
-.fc-seg-fill {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
-  height: 3px;
-  margin-top: -1.5px;
-  border-radius: 999px;
-  background: var(--primary);
-  transform-origin: left center;
-  animation: fc-seg-fill var(--fc-autoplay) linear forwards;
-}
-
-@keyframes fc-seg-fill {
-  from {
-    transform: scaleX(0);
-  }
-  to {
-    transform: scaleX(1);
-  }
-}
-
-.fc.is-paused .fc-seg-fill,
-.fc:focus-within .fc-seg-fill {
-  animation-play-state: paused;
-}
-
-/* 悬停提示：功能名 */
-.fc-seg::after {
-  content: attr(data-label);
-  position: absolute;
-  bottom: calc(100% + 7px);
-  left: 50%;
-  padding: 4px 9px;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  background: var(--card-bg);
-  box-shadow: var(--shadow-card);
-  color: var(--text-2);
-  font-size: 11.5px;
-  line-height: 1.5;
-  white-space: nowrap;
-  opacity: 0;
-  pointer-events: none;
-  transform: translate(-50%, 4px);
-  transition: opacity 0.16s var(--fc-ease), transform 0.16s var(--fc-ease);
-}
-
-.fc-seg:focus-visible::after {
-  opacity: 1;
-  transform: translate(-50%, 0);
-}
-@media (hover: hover) and (pointer: fine) {
-  .fc-seg:hover::after {
-    opacity: 1;
-    transform: translate(-50%, 0);
-  }
-}
-
-.fc-seg[data-edge='start']::after {
-  left: 0;
-  transform: translate(0, 4px);
-}
-
-.fc-seg[data-edge='start']:focus-visible::after {
-  transform: translate(0, 0);
-}
-@media (hover: hover) and (pointer: fine) {
-  .fc-seg[data-edge='start']:hover::after {
-    transform: translate(0, 0);
-  }
-}
-
-.fc-seg[data-edge='end']::after {
-  left: auto;
-  right: 0;
-  transform: translate(0, 4px);
-}
-
-.fc-seg[data-edge='end']:focus-visible::after {
-  transform: translate(0, 0);
-}
-@media (hover: hover) and (pointer: fine) {
-  .fc-seg[data-edge='end']:hover::after {
-    transform: translate(0, 0);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .fc-slide,
-  .fc-arrow,
-  .fc-seg::before,
-  .fc-seg::after {
-    transition: none;
-  }
-  .fc-slide.is-active .fc-shift,
-  .fc-slide.is-leaving .fc-shift {
-    animation: none;
-  }
-  .fc-seg-fill {
-    animation: none;
-    transform: scaleX(1);
-  }
-  .fc.is-paused .fc-seg-fill,
-  .fc:focus-within .fc-seg-fill {
-    animation-play-state: running;
+@media (max-width: 560px) {
+  .feature-grid {
+    grid-template-columns: 1fr;
   }
 }
 
